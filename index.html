@@ -58,21 +58,18 @@
 <script>
   // Configuration: Point this directly to your raw GitHub Pages CSV file path
   const CSV_URL = 'https://raymondwoocheil.github.io/sehk-ins-promo-track/data/clicks.csv';
-// Helper to format a Date object into YYYY-MM-DD in Asia/Hong_Kong timezone
+
   function getHKTDateString(date) {
+    if (isNaN(date.getTime())) return null;
     const hktOptions = { timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit' };
-    const formatter = new Intl.DateTimeFormat('en-CA', hktOptions); // en-CA format matches YYYY-MM-DD
+    const formatter = new Intl.DateTimeFormat('en-CA', hktOptions); 
     return formatter.format(date);
   }
 
-  // Automatically calculate and set default HKT dates on load
   window.addEventListener('DOMContentLoaded', () => {
     const now = new Date();
-    
-    // "Today" in HKT
     const todayStr = getHKTDateString(now);
     
-    // "30 days ago" based on current time
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(now.getDate() - 30);
     const thirtyDaysAgoStr = getHKTDateString(thirtyDaysAgo);
@@ -90,11 +87,6 @@
       alert(err.message);
       return '';
     }
-  }
-
-  function convertToHKTDateString(isoString) {
-    const date = new Date(isoString);
-    return getHKTDateString(date);
   }
 
   async function processAnalytics() {
@@ -118,11 +110,15 @@
       if (parts.length < 2) return;
 
       const timestamp = parts[0].trim();
+      
+      // Skip the CSV header row if it is present
+      if (timestamp === 'timestamp') return;
+
       const trackingValue = parts.slice(1).join(',').trim();
+      const hktDateStr = getHKTDateString(new Date(timestamp));
 
-      const hktDateStr = convertToHKTDateString(timestamp);
-
-      if (hktDateStr >= startInput && hktDateStr <= endInput) {
+      // Validate parsed date context
+      if (hktDateStr && hktDateStr >= startInput && hktDateStr <= endInput) {
         counts[trackingValue] = (counts[trackingValue] || 0) + 1;
       }
     });
