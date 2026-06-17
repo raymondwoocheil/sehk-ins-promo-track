@@ -58,6 +58,28 @@
 <script>
   // Configuration: Point this directly to your raw GitHub Pages CSV file path
   const CSV_URL = 'https://raymondwoocheil.github.io/sehk-ins-promo-track/data/clicks.csv';
+// Helper to format a Date object into YYYY-MM-DD in Asia/Hong_Kong timezone
+  function getHKTDateString(date) {
+    const hktOptions = { timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit' };
+    const formatter = new Intl.DateTimeFormat('en-CA', hktOptions); // en-CA format matches YYYY-MM-DD
+    return formatter.format(date);
+  }
+
+  // Automatically calculate and set default HKT dates on load
+  window.addEventListener('DOMContentLoaded', () => {
+    const now = new Date();
+    
+    // "Today" in HKT
+    const todayStr = getHKTDateString(now);
+    
+    // "30 days ago" based on current time
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(now.getDate() - 30);
+    const thirtyDaysAgoStr = getHKTDateString(thirtyDaysAgo);
+
+    document.getElementById('startDate').value = thirtyDaysAgoStr;
+    document.getElementById('endDate').value = todayStr;
+  });
 
   async function fetchCSV() {
     try {
@@ -72,10 +94,7 @@
 
   function convertToHKTDateString(isoString) {
     const date = new Date(isoString);
-    // Force conversion formatting to Hong Kong timezone
-    const hktOptions = { timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit' };
-    const formatter = new Intl.DateTimeFormat('en-CA', hktOptions); // en-CA yields YYYY-MM-DD
-    return formatter.format(date);
+    return getHKTDateString(date);
   }
 
   async function processAnalytics() {
@@ -99,7 +118,7 @@
       if (parts.length < 2) return;
 
       const timestamp = parts[0].trim();
-      const trackingValue = parts.slice(1).join(',').trim(); // handle strings containing commas
+      const trackingValue = parts.slice(1).join(',').trim();
 
       const hktDateStr = convertToHKTDateString(timestamp);
 
