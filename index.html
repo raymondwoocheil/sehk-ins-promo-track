@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Click Analytics Dashboard</title>
+  <style>
+    body { font-family: -apple-system, sans-serif; margin: 30px; background: #f6f8fa; color: #24292e; }
+    .container { max-width: 800px; margin: 0 auto; background: white; padding: 25px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
+    h2 { border-bottom: 1px solid #e1e4e8; padding-bottom: 10px; }
+    .filter-group { display: flex; gap: 15px; margin-bottom: 20px; align-items: flex-end; }
+    .input-field { display: flex; flex-direction: column; gap: 5px; }
+    input, button { padding: 8px 12px; border: 1px solid #d1d5da; border-radius: 4px; font-size: 14px; }
+    button { background: #2ea44f; color: white; border: none; cursor: pointer; font-weight: bold; }
+    button:hover { background: #2c974b; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { text-align: left; padding: 12px; border-bottom: 1px solid #e1e4e8; }
+    th { background: #f6f8fa; }
+    .raw-container { margin-top: 30px; }
+    textarea { width: 100%; height: 150px; font-family: monospace; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h2>Click Analytics Dashboard (HKT Timezone)</h2>
+  
+  <div class="filter-group">
+    <div class="input-field">
+      <label>Start Date (HKT)</label>
+      <input type="date" id="startDate">
+    </div>
+    <div class="input-field">
+      <label>End Date (HKT)</label>
+      <input type="date" id="endDate">
+    </div>
+    <button onclick="processAnalytics()">Fetch & Filter Data</button>
+  </div>
+
+  <h3>Aggregated Counts</h3>
+  <table id="analyticsTable">
+    <thead>
+      <tr>
+        <th>Data Tracking Value</th>
+        <th>Click Count</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td colspan="2" style="text-align:center;">No data processed yet.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="raw-container">
+    <h3>Raw Captured Data</h3>
+    <textarea id="rawDataOutput" readonly placeholder="Raw CSV data will appear here..."></textarea>
+  </div>
+</div>
+
+<script>
+  // Configuration: Point this directly to your raw GitHub Pages CSV file path
+  const CSV_URL = 'https://YOUR_GITHUB_USERNAME.github.io/YOUR_REPO_NAME/data/clicks.csv';
+
+  async function fetchCSV() {
+    try {
+      const response = await fetch(CSV_URL, { cache: 'no-store' });
+      if (!response.ok) throw new Error('Data file not found or empty.');
+      return await response.text();
+    } catch (err) {
+      alert(err.message);
+      return '';
+    }
+  }
+
+  function convertToHKTDateString(isoString) {
+    const date = new Date(isoString);
+    // Force conversion formatting to Hong Kong timezone
+    const hktOptions = { timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit' };
+    const formatter = new Intl.DateTimeFormat('en-CA', hktOptions); // en-CA yields YYYY-MM-DD
+    return formatter.format(date);
+  }
+
+  async function processAnalytics() {
+    const startInput = document.getElementById('startDate').value;
+    const endInput = document.getElementById('endDate').value;
+
+    if (!startInput || !endInput) {
+      alert('Please select both start and end dates.');
+      return;
+    }
+
+    const rawCSV = await fetchCSV();
+    document.getElementById('rawDataOutput').value = rawCSV;
+    if (!rawCSV) return;
+
+    const lines = rawCSV.trim().split('\n');
+    const counts = {};
+
+    lines.forEach(line => {
+      const parts = line.split(',');
+      if (parts.length < 2) return;
+
+      const timestamp = parts[0].trim();
+      const trackingValue = parts.slice(1).join(',').trim(); // handle strings containing commas
+
+      const hktDateStr = convertToHKTDateString(timestamp);
+
+      if (hktDateStr >= startInput && hktDateStr <= endInput) {
+        counts[trackingValue] = (counts[trackingValue] || 0) + 1;
+      }
+    });
+
+    const tbody = document.querySelector('#analyticsTable tbody');
+    tbody.innerHTML = '';
+
+    const sortedEntries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+
+    if (sortedEntries.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;">No click matches found for this range.</td></tr>';
+      return;
+    }
+
+    sortedEntries.forEach(([val, count]) => {
+      const row = `<tr><td><strong>${val}</strong></td><td>${count}</td></tr>`;
+      tbody.innerHTML += row;
+    });
+  }
+</script>
+</body>
+</html>
