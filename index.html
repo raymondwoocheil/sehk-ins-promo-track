@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Click Analytics Dashboard</title>
+  <title>Supabase Click Analytics</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     body { font-family: -apple-system, sans-serif; margin: 30px; background: #f6f8fa; color: #24292e; }
     .container { max-width: 800px; margin: 0 auto; background: white; padding: 25px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
@@ -22,7 +23,7 @@
 <body>
 
 <div class="container">
-  <h2>Click Analytics Dashboard (HKT Timezone)</h2>
+  <h2>Click Analytics Dashboard (Supabase + HKT)</h2>
   
   <div class="filter-group">
     <div class="input-field">
@@ -33,7 +34,7 @@
       <label>End Date (HKT)</label>
       <input type="date" id="endDate">
     </div>
-    <button onclick="processAnalytics()">Fetch & Filter Data</button>
+    <button onclick="fetchAndAggregate()">Fetch & Filter Data</button>
   </div>
 
   <h3>Aggregated Counts</h3>
@@ -50,77 +51,62 @@
   </table>
 
   <div class="raw-container">
-    <h3>Raw Captured Data</h3>
-    <textarea id="rawDataOutput" readonly placeholder="Raw CSV data will appear here..."></textarea>
+    <h3>Raw Captured Data (JSON Dump)</h3>
+    <textarea id="rawDataOutput" readonly placeholder="Raw JSON rows returned from database..."></textarea>
   </div>
 </div>
 
 <script>
-  // Configuration: Point this directly to your raw GitHub Pages CSV file path
-  const CSV_URL = 'https://raymondwoocheil.github.io/sehk-ins-promo-track/data/clicks.csv';
+  const SUPABASE_URL = 'https://umjcfwragogvkuqoivoi.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_6-AZIOaEAOW3jeOoYf_CEQ_d40svSiz';
+  const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   function getHKTDateString(date) {
-    if (isNaN(date.getTime())) return null;
     const hktOptions = { timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit' };
-    const formatter = new Intl.DateTimeFormat('en-CA', hktOptions); 
+    const formatter = new Intl.DateTimeFormat('en-CA', hktOptions);
     return formatter.format(date);
   }
 
   window.addEventListener('DOMContentLoaded', () => {
     const now = new Date();
-    const todayStr = getHKTDateString(now);
+    document.getElementById('endDate').value = getHKTDateString(now);
     
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(now.getDate() - 30);
-    const thirtyDaysAgoStr = getHKTDateString(thirtyDaysAgo);
-
-    document.getElementById('startDate').value = thirtyDaysAgoStr;
-    document.getElementById('endDate').value = todayStr;
+    document.getElementById('startDate').value = getHKTDateString(thirtyDaysAgo);
   });
 
-  async function fetchCSV() {
-    try {
-      const response = await fetch(CSV_URL, { cache: 'no-store' });
-      if (!response.ok) throw new Error('Data file not found or empty.');
-      return await response.text();
-    } catch (err) {
-      alert(err.message);
-      return '';
-    }
-  }
-
-  async function processAnalytics() {
+  async function fetchAndAggregate() {
     const startInput = document.getElementById('startDate').value;
     const endInput = document.getElementById('endDate').value;
 
     if (!startInput || !endInput) {
-      alert('Please select both start and end dates.');
+      alert('Please configure date range filters.');
       return;
     }
 
-    const rawCSV = await fetchCSV();
-    document.getElementById('rawDataOutput').value = rawCSV;
-    if (!rawCSV) return;
+    // Convert regional HKT date boundaries to explicit ISO limits for structural Postgres query matching
+    const startISO = new Date(`${startInput}T00:00:00+08:00`).toISOString();
+    const endISO = new Date(`${endInput}T23:59:59+08:00`).toISOString();
 
-    const lines = rawCSV.trim().split('\n');
+    // Directly query database rows matching range thresholds
+    const { data, error } = await supabaseClient
+      .from('clicks')
+      .select('timestamp, tracking_value')
+      .gte('timestamp', startISO)
+      .lte('timestamp', endISO);
+
+    if (error) {
+      alert('Error fetching data: ' + error.message);
+      return;
+    }
+
+    document.getElementById('rawDataOutput').value = JSON.stringify(data, null, 2);
+
     const counts = {};
-
-    lines.forEach(line => {
-      const parts = line.split(',');
-      if (parts.length < 2) return;
-
-      const timestamp = parts[0].trim();
-      
-      // Skip the CSV header row if it is present
-      if (timestamp === 'timestamp') return;
-
-      const trackingValue = parts.slice(1).join(',').trim();
-      const hktDateStr = getHKTDateString(new Date(timestamp));
-
-      // Validate parsed date context
-      if (hktDateStr && hktDateStr >= startInput && hktDateStr <= endInput) {
-        counts[trackingValue] = (counts[trackingValue] || 0) + 1;
-      }
+    data.forEach(row => {
+      const val = row.tracking_value;
+      counts[val] = (counts[val] || 0) + 1;
     });
 
     const tbody = document.querySelector('#analyticsTable tbody');
