@@ -1,0 +1,31 @@
+name: Log Click
+
+on:
+  workflow_dispatch:
+    inputs:
+      tracking_value:
+        description: 'The data-tracking value'
+        required: true
+      timestamp:
+        description: 'ISO Timestamp of the click'
+        required: true
+
+jobs:
+  log:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Append Click Log
+        run: |
+          mkdir -p data
+          echo "${{ github.event.inputs.timestamp }},${{ github.event.inputs.tracking_value }}" >> data/clicks.csv
+
+      - name: Commit and Push Log
+        run: |
+          git config --global user.name "GitHub Actions Bot"
+          git config --global user.email "actions@github.com"
+          git add data/clicks.csv
+          git commit -m "Log click: ${{ github.event.inputs.tracking_value }}"
+          git push
