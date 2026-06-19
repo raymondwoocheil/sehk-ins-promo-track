@@ -96,6 +96,7 @@
       <button class="shortcut-btn" onclick="applyDateShortcut('thisWeek')">This Week (Mon-Sun)</button>
       <button class="shortcut-btn" onclick="applyDateShortcut('thisMonth')">This Month</button>
       <button class="btn-primary" style="margin-left: auto;" onclick="fetchRecordsPipeline()">Fetch Tracker Log</button>
+      <button class="btn-primary" style="background: #0366d6; margin-left: 10px;" onclick="copyTableAsTSV()">Copy as TSV</button>
     </div>
   </div>
 
@@ -442,6 +443,43 @@
   function toggleDrilldown(index) {
     const el = document.getElementById(`drilldown-${index}`);
     el.style.display = (el.style.display === 'table-row') ? 'none' : 'table-row';
+  }
+
+  function copyTableAsTSV() {
+    const table = document.getElementById('analyticsTable');
+    if (!table) return;
+    
+    let tsvContent = "";
+    const rows = table.querySelectorAll('tr');
+    
+    rows.forEach(row => {
+      // Skip hidden expandable drilldown container rows to keep the export clean
+      if (row.classList.contains('drilldown-container') || row.style.display === 'none') return;
+      
+      const cells = row.querySelectorAll('th, td');
+      const rowData = [];
+      
+      cells.forEach(cell => {
+        // Clean up text characters, tabs, or newlines inside the text context cells
+        let cellText = cell.innerText.replace(/\r?\n|\r/g, " ").trim();
+        rowData.push(cellText);
+      });
+      
+      if (rowData.length > 0) {
+        tsvContent += rowData.join("\t") + "\n";
+      }
+    });
+
+    if (!tsvContent.trim() || tsvContent.includes("No tracking data available")) {
+      alert("No active metrics matching query matrix fields to copy.");
+      return;
+    }
+
+    navigator.clipboard.writeText(tsvContent).then(() => {
+      alert("Table metrics copied to clipboard as TSV format! Ready for Excel/Sheets paste.");
+    }).catch(err => {
+      console.error("Clipboard operational interface execution failure: ", err);
+    });
   }
 </script>
 </body>
