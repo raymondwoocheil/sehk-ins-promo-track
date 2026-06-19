@@ -100,7 +100,7 @@
     const now = new Date();
     document.getElementById('endDate').value = getHKTDateString(now);
     const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(now.getDate() - 30);
+    thirtyDaysAgo.setDate(now.getDate() - 7);
     document.getElementById('startDate').value = getHKTDateString(thirtyDaysAgo);
     fetchSheetRecords();
   });
