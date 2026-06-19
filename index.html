@@ -2,11 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>SEHK Insider Promotion Component - Supabase Click Analytics</title>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <title>SEHK Insider Promotion Component Analytics</title>
   <style>
     body { font-family: -apple-system, sans-serif; margin: 30px; background: #f6f8fa; color: #24292e; }
-    .container { max-width: 900px; margin: 0 auto; background: white; padding: 25px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
+    .container { max-width: 1000px; margin: 0 auto; background: white; padding: 25px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
     h2 { border-bottom: 1px solid #e1e4e8; padding-bottom: 10px; }
     .filter-group { display: flex; gap: 15px; margin-bottom: 20px; align-items: flex-end; flex-wrap: wrap; }
     .input-field { display: flex; flex-direction: column; gap: 5px; }
@@ -28,16 +27,14 @@
     .drilldown-table { width: 100%; margin: 5px 0 15px 0; font-size: 13px; background: white; border: 1px solid #e1e4e8; }
     .drilldown-table th { background: #eaecef; }
     
-    .click-count-text { font-size: 14px; font-weight: normal; color: #24292e; }
-
-    .raw-container { margin-top: 30px; }
-    textarea { width: 100%; height: 120px; font-family: monospace; }
+    .metric-text { font-size: 14px; font-weight: normal; color: #24292e; }
+    .ctr-high { color: #2ea44f; font-weight: bold; }
   </style>
 </head>
 <body>
 
 <div class="container">
-  <h2>SEHK Insider Promotion Component - Click Analytics</h2>
+  <h2>SEHK Insider Promotion Component Analytics</h2>
   
   <div class="filter-group">
     <div class="input-field">
@@ -52,19 +49,20 @@
       <label>Sort Primary Matrix By</label>
       <select id="sortEngine" onchange="renderMetricsTable()">
         <option value="clicks_desc" selected>Most Clicks → Least Clicks</option>
-        <option value="alpha_asc">Tracker Value (A-Z) → URL (A-Z)</option>
+        <option value="ctr_desc">Highest CTR% → Lowest CTR%</option>
+        <option value="alpha_asc">Tracker Value (A-Z)</option>
       </select>
     </div>
     <div class="input-field">
       <label class="checkbox-field">
         <input type="checkbox" id="stripParams" onchange="renderMetricsTable()" checked>
-        Aggregate Clean URLs (Strip Parameters)
+        Aggregate Clean URLs (Ignore CID / Extra Params)
       </label>
     </div>
-    <button onclick="fetchDatabaseRecords()">Fetch Records</button>
+    <button onclick="fetchSheetRecords()">Refresh From Sheets</button>
   </div>
 
-  <h3>Aggregated Performance Tracking</h3>
+  <h3>Performance Tracking Matrix</h3>
 
   <div class="search-container">
     <input type="text" id="searchValueFilter" oninput="renderMetricsTable()" placeholder="🔍 Search Data Tracking Values...">
@@ -74,26 +72,23 @@
     <thead>
       <tr>
         <th>Data Tracking Value</th>
-        <th id="totalVolumeHeader">Total Click Volume</th>
+        <th>Impressions</th>
+        <th id="totalVolumeHeader">Clicks</th>
+        <th>CTR %</th>
       </tr>
     </thead>
     <tbody id="mainTableBody">
-      <tr><td colspan="2" style="text-align:center;">No data processed yet. Real-time entries will compile when fetched.</td></tr>
+      <tr><td colspan="4" style="text-align:center;">No data compiled yet. Click 'Refresh From Sheets' to sync.</td></tr>
     </tbody>
   </table>
-
-  <div class="raw-container">
-    <h3>Raw Captured JSON Payload</h3>
-    <textarea id="rawDataOutput" readonly placeholder="Waiting on network execution request parameters..."></textarea>
-  </div>
 </div>
 
 <script>
-  const SUPABASE_URL = 'https://umjcfwragogvkuqoivoi.supabase.co';
-  const SUPABASE_ANON_KEY = 'sb_publishable_6-AZIOaEAOW3jeOoYf_CEQ_d40svSiz';
-  const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  // --- PASTE YOUR GOOGLE SHEET CSV EXPORT LINKS HERE ---
+  const CLICKS_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQo7-Pj0YYvK9m_ptkYkTtWwMKnq3nEFUwUyFgi67cMgOIls2v2ilopWjVOKE44QG4751VyauxO0WlL/pub?gid=0&single=true&output=csv';
+  const IMPRESSIONS_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQo7-Pj0YYvK9m_ptkYkTtWwMKnq3nEFUwUyFgi67cMgOIls2v2ilopWjVOKE44QG4751VyauxO0WlL/pub?gid=1549224613&single=true&output=csv';
 
-  let fetchedDataCache = []; 
+  let fetchedEventsCache = []; 
 
   function getHKTDateString(date) {
     const hktOptions = { timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit' };
@@ -104,47 +99,68 @@
   window.addEventListener('DOMContentLoaded', () => {
     const now = new Date();
     document.getElementById('endDate').value = getHKTDateString(now);
-    
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(now.getDate() - 30);
     document.getElementById('startDate').value = getHKTDateString(thirtyDaysAgo);
+    fetchSheetRecords();
   });
 
-  async function fetchDatabaseRecords() {
-    const startInput = document.getElementById('startDate').value;
-    const endInput = document.getElementById('endDate').value;
+  // Basic RFC 4180 CSV Text Parser Engine
+  function parseCSVText(text) {
+    const lines = [];
+    let row = [""];
+    let inQuotes = false;
 
-    if (!startInput || !endInput) {
-      alert('Configure localized data tracking query windows.');
-      return;
+    for (let i = 0; i < text.length; i++) {
+      let c = text[i];
+      let next = text[i+1];
+      if (c === '"') {
+        if (inQuotes && next === '"') { row[row.length - 1] += '"'; i++; }
+        else { inQuotes = !inQuotes; }
+      } else if (c === ',' && !inQuotes) {
+        row.push('');
+      } else if ((c === '\r' || c === '\n') && !inQuotes) {
+        if (c === '\r' && next === '\n') { i++; }
+        if (row.length > 1 || row[0] !== '') lines.push(row);
+        row = [''];
+      } else {
+        row[row.length - 1] += c;
+      }
     }
-
-    const startISO = new Date(`${startInput}T00:00:00+08:00`).toISOString();
-    const endISO = new Date(`${endInput}T23:59:59+08:00`).toISOString();
-
-    const { data, error } = await supabaseClient
-      .from('clicks')
-      .select('timestamp, tracking_value, url')
-      .gte('timestamp', startISO)
-      .lte('timestamp', endISO);
-
-    if (error) {
-      alert('Failed query parsing context: ' + error.message);
-      return;
-    }
-
-    fetchedDataCache = data;
-    document.getElementById('rawDataOutput').value = JSON.stringify(data, null, 2);
-    renderMetricsTable();
+    if (row.length > 1 || row[0] !== '') lines.push(row);
+    return lines;
   }
 
-  function cleanUrlString(rawUrl) {
-    if (!rawUrl || rawUrl === 'unknown') return 'unknown';
+  async function fetchSheetRecords() {
     try {
-      const urlObj = new URL(rawUrl);
-      return urlObj.origin + urlObj.pathname;
+      const [clicksRes, impRes] = await Promise.all([
+        fetch(CLICKS_CSV_URL).then(r => r.text()),
+        fetch(IMPRESSIONS_CSV_URL).then(r => r.text())
+      ]);
+
+      const clickRows = parseCSVText(clicksRes);
+      const impRows = parseCSVText(impRes);
+      
+      const parsedEvents = [];
+
+      // Process Clicks (Skip header index 0: Timestamp, Tracking Value, Clean URL, CID, Other Parameters)
+      for(let i = 1; i < clickRows.length; i++) {
+        const r = clickRows[i];
+        if (r.length < 3) continue;
+        parsedEvents.push({ timestamp: r[0], tracking_value: r[1], url_clean: r[2], cid: r[3], other_params: r[4], event_type: 'click' });
+      }
+
+      // Process Impressions
+      for(let i = 1; i < impRows.length; i++) {
+        const r = impRows[i];
+        if (r.length < 3) continue;
+        parsedEvents.push({ timestamp: r[0], tracking_value: r[1], url_clean: r[2], cid: r[3], other_params: r[4], event_type: 'impression' });
+      }
+
+      fetchedEventsCache = parsedEvents;
+      renderMetricsTable();
     } catch (e) {
-      return rawUrl.split('?')[0].split('#')[0];
+      alert("Error loading csv feeds from Google Sheets. Check your publishing URLs: " + e.message);
     }
   }
 
@@ -152,93 +168,121 @@
     const tbody = document.getElementById('mainTableBody');
     tbody.innerHTML = '';
 
-    if (fetchedDataCache.length === 0) {
-      document.getElementById('totalVolumeHeader').innerText = 'Total Click Volume';
-      tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;">No click matches found for this range.</td></tr>';
-      return;
-    }
-
+    const startInput = document.getElementById('startDate').value;
+    const endInput = document.getElementById('endDate').value;
     const sortStrategy = document.getElementById('sortEngine').value;
     const shouldStripParams = document.getElementById('stripParams').checked;
     const searchQuery = document.getElementById('searchValueFilter').value.trim().toLowerCase();
 
-    const aggregation = {};
-    let filteredSumTotal = 0; // Tracks running total of filtered visible items
-    
-    fetchedDataCache.forEach(row => {
-      const val = row.tracking_value;
-      
-      if (searchQuery && !val.toLowerCase().includes(searchQuery)) {
-        return;
-      }
+    if (!startInput || !endInput || fetchedEventsCache.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">No tracking data available.</td></tr>';
+      return;
+    }
 
-      const url = shouldStripParams ? cleanUrlString(row.url) : (row.url || 'unknown');
+    // Localized Date Bounds Calculation Rules
+    const startBounds = new Date(`${startInput}T00:00:00+08:00`);
+    const endBounds = new Date(`${endInput}T23:59:59+08:00`);
+
+    const aggregation = {};
+    let totalClicksSum = 0;
+    
+    fetchedEventsCache.forEach(row => {
+      const eventDate = new Date(row.timestamp);
+      if (eventDate < startBounds || eventDate > endBounds) return;
+
+      const val = row.tracking_value;
+      if (searchQuery && !val.toLowerCase().includes(searchQuery)) return;
+
+      // URL reconstruct pathing based on data options parameter setups
+      const baseTrackedUrl = row.url_clean || 'unknown';
+      const url = shouldStripParams ? baseTrackedUrl : (baseTrackedUrl + (row.cid ? '?cid=' + row.cid : '') + (row.other_params ? '&' + row.other_params : ''));
+      const type = row.event_type;
 
       if (!aggregation[val]) {
-        aggregation[val] = { total: 0, urls: {} };
+        aggregation[val] = { clicks: 0, impressions: 0, urls: {} };
       }
-      aggregation[val].total += 1;
-      aggregation[val].urls[url] = (aggregation[val].urls[url] || 0) + 1;
-      
-      filteredSumTotal += 1; // Increment total only for items matching filters
+      if (!aggregation[val].urls[url]) {
+        aggregation[val].urls[url] = { clicks: 0, impressions: 0 };
+      }
+
+      if (type === 'click') {
+        aggregation[val].clicks += 1;
+        aggregation[val].urls[url].clicks += 1;
+        totalClicksSum += 1;
+      } else if (type === 'impression') {
+        aggregation[val].impressions += 1;
+        aggregation[val].urls[url].impressions += 1;
+      }
     });
 
-    // Update the table column header text layout dynamically with the visible total
-    document.getElementById('totalVolumeHeader').innerText = `Total Click Volume (Sum: ${filteredSumTotal})`;
+    document.getElementById('totalVolumeHeader').innerText = `Clicks (Sum: ${totalClicksSum})`;
 
-    let entries = Object.entries(aggregation);
+    let entries = Object.entries(aggregation).map(([val, meta]) => {
+      const ctr = meta.impressions > 0 ? ((meta.clicks / meta.impressions) * 100).toFixed(2) : '0.00';
+      return [val, { ...meta, ctr: parseFloat(ctr) }];
+    });
 
     if (entries.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;">No tracking parameters match your search criteria.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">No items matching date filters.</td></tr>';
       return;
     }
 
     if (sortStrategy === 'clicks_desc') {
-      entries.sort((a, b) => b[1].total - a[1].total);
+      entries.sort((a, b) => b[1].clicks - a[1].clicks);
+    } else if (sortStrategy === 'ctr_desc') {
+      entries.sort((a, b) => b[1].ctr - a[1].ctr);
     } else if (sortStrategy === 'alpha_asc') {
       entries.sort((a, b) => a[0].localeCompare(b[0]));
     }
 
     entries.forEach(([trackingValue, meta], index) => {
-      let sortedUrls = Object.entries(meta.urls);
-      if (sortStrategy === 'alpha_asc') {
-        sortedUrls.sort((a, b) => a[0].localeCompare(b[0]));
+      let urlEntries = Object.entries(meta.urls).map(([url, uMeta]) => {
+        const uCtr = uMeta.impressions > 0 ? ((uMeta.clicks / uMeta.impressions) * 100).toFixed(2) : '0.00';
+        return [url, { ...uMeta, ctr: parseFloat(uCtr) }];
+      });
+
+      if (sortStrategy === 'ctr_desc') {
+        urlEntries.sort((a, b) => b[1].ctr - a[1].ctr);
+      } else if (sortStrategy === 'alpha_asc') {
+        urlEntries.sort((a, b) => a[0].localeCompare(b[0]));
       } else {
-        sortedUrls.sort((a, b) => b[1] - a[1]);
+        urlEntries.sort((a, b) => b[1].clicks - a[1].clicks);
       }
 
       const mainRow = `
         <tr class="clickable-row" onclick="toggleDrilldown(${index})">
           <td><strong>📁 ${trackingValue}</strong></td>
-          <td><span class="click-count-text">${meta.total} clicks</span></td>
+          <td class="metric-text">${meta.impressions}</td>
+          <td class="metric-text">${meta.clicks}</td>
+          <td class="metric-text ${meta.ctr > 5 ? 'ctr-high' : ''}">${meta.ctr}%</td>
         </tr>
       `;
 
       let drilldownRowsHtml = '';
-      sortedUrls.forEach(([url, count]) => {
+      urlEntries.forEach(([url, uMeta]) => {
         drilldownRowsHtml += `
           <tr>
-            <td>
-              ${url !== 'unknown' && url.startsWith('http') ? `<a href="${url}" target="_blank" style="color: #0366d6; word-break: break-all;">${url}</a>` : url}
-            </td>
-            <td><strong>${count}</strong></td>
+            <td>${url.startsWith('http') ? `<a href="${url}" target="_blank" style="color: #0366d6; word-break: break-all;">${url}</a>` : url}</td>
+            <td>${uMeta.impressions}</td>
+            <td>${uMeta.clicks}</td>
+            <td><span class="${uMeta.ctr > 5 ? 'ctr-high' : ''}">${uMeta.ctr}%</span></td>
           </tr>
         `;
       });
 
       const drilldownRow = `
         <tr id="drilldown-${index}" class="drilldown-container">
-          <td colspan="2">
+          <td colspan="4">
             <table class="drilldown-table">
               <thead>
                 <tr>
-                  <th>Target Origin Document URL</th>
-                  <th>Clicks Location Capture Count</th>
+                  <th>Target URL Path</th>
+                  <th>Impressions</th>
+                  <th>Clicks</th>
+                  <th>CTR %</th>
                 </tr>
               </thead>
-              <tbody>
-                ${drilldownRowsHtml}
-              </tbody>
+              <tbody>${drilldownRowsHtml}</tbody>
             </table>
           </td>
         </tr>
