@@ -6,18 +6,32 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     body { font-family: -apple-system, sans-serif; margin: 30px; background: #f6f8fa; color: #24292e; }
-    .container { max-width: 800px; margin: 0 auto; background: white; padding: 25px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
+    .container { max-width: 900px; margin: 0 auto; background: white; padding: 25px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
     h2 { border-bottom: 1px solid #e1e4e8; padding-bottom: 10px; }
-    .filter-group { display: flex; gap: 15px; margin-bottom: 20px; align-items: flex-end; }
+    .filter-group { display: flex; gap: 15px; margin-bottom: 20px; align-items: flex-end; flex-wrap: wrap; }
     .input-field { display: flex; flex-direction: column; gap: 5px; }
-    input, button { padding: 8px 12px; border: 1px solid #d1d5da; border-radius: 4px; font-size: 14px; }
+    .checkbox-field { display: flex; align-items: center; gap: 8px; padding-bottom: 10px; cursor: pointer; user-select: none; }
+    .checkbox-field input { width: 16px; height: 16px; cursor: pointer; }
+    input, select, button { padding: 8px 12px; border: 1px solid #d1d5da; border-radius: 4px; font-size: 14px; background: white; }
     button { background: #2ea44f; color: white; border: none; cursor: pointer; font-weight: bold; }
     button:hover { background: #2c974b; }
-    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    
+    .search-container { margin: 20px 0 10px 0; width: 100%; max-width: 400px; }
+    .search-container input { width: 100%; box-sizing: border-box; padding: 10px; border: 1px solid #d1d5da; }
+
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
     th, td { text-align: left; padding: 12px; border-bottom: 1px solid #e1e4e8; }
     th { background: #f6f8fa; }
+    .clickable-row { cursor: pointer; transition: background 0.2s; }
+    .clickable-row:hover { background: #f1f8ff; }
+    .drilldown-container { background: #fafbfc; padding: 10px 20px; border-bottom: 1px solid #e1e4e8; display: none; }
+    .drilldown-table { width: 100%; margin: 5px 0 15px 0; font-size: 13px; background: white; border: 1px solid #e1e4e8; }
+    .drilldown-table th { background: #eaecef; }
+    
+    .click-count-text { font-size: 14px; font-weight: normal; color: #24292e; }
+
     .raw-container { margin-top: 30px; }
-    textarea { width: 100%; height: 150px; font-family: monospace; }
+    textarea { width: 100%; height: 120px; font-family: monospace; }
   </style>
 </head>
 <body>
@@ -34,25 +48,43 @@
       <label>End Date (HKT)</label>
       <input type="date" id="endDate">
     </div>
-    <button onclick="fetchAndAggregate()">Fetch & Filter Data</button>
+    <div class="input-field">
+      <label>Sort Primary Matrix By</label>
+      <select id="sortEngine" onchange="renderMetricsTable()">
+        <option value="clicks_desc" selected>Most Clicks → Least Clicks</option>
+        <option value="alpha_asc">Tracker Value (A-Z) → URL (A-Z)</option>
+      </select>
+    </div>
+    <div class="input-field">
+      <label class="checkbox-field">
+        <input type="checkbox" id="stripParams" onchange="renderMetricsTable()" checked>
+        Aggregate Clean URLs (Strip Parameters)
+      </label>
+    </div>
+    <button onclick="fetchDatabaseRecords()">Fetch Records</button>
   </div>
 
-  <h3>Aggregated Counts</h3>
+  <h3>Aggregated Performance Tracking</h3>
+
+  <div class="search-container">
+    <input type="text" id="searchValueFilter" oninput="renderMetricsTable()" placeholder="🔍 Search Data Tracking Values...">
+  </div>
+
   <table id="analyticsTable">
     <thead>
       <tr>
         <th>Data Tracking Value</th>
-        <th>Click Count</th>
+        <th id="totalVolumeHeader">Total Click Volume</th>
       </tr>
     </thead>
-    <tbody>
-      <tr><td colspan="2" style="text-align:center;">No data processed yet.</td></tr>
+    <tbody id="mainTableBody">
+      <tr><td colspan="2" style="text-align:center;">No data processed yet. Real-time entries will compile when fetched.</td></tr>
     </tbody>
   </table>
 
   <div class="raw-container">
-    <h3>Raw Captured Data (JSON Dump)</h3>
-    <textarea id="rawDataOutput" readonly placeholder="Raw JSON rows returned from database..."></textarea>
+    <h3>Raw Captured JSON Payload</h3>
+    <textarea id="rawDataOutput" readonly placeholder="Waiting on network execution request parameters..."></textarea>
   </div>
 </div>
 
@@ -60,6 +92,8 @@
   const SUPABASE_URL = 'https://umjcfwragogvkuqoivoi.supabase.co';
   const SUPABASE_ANON_KEY = 'sb_publishable_6-AZIOaEAOW3jeOoYf_CEQ_d40svSiz';
   const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  let fetchedDataCache = []; 
 
   function getHKTDateString(date) {
     const hktOptions = { timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit' };
@@ -76,53 +110,147 @@
     document.getElementById('startDate').value = getHKTDateString(thirtyDaysAgo);
   });
 
-  async function fetchAndAggregate() {
+  async function fetchDatabaseRecords() {
     const startInput = document.getElementById('startDate').value;
     const endInput = document.getElementById('endDate').value;
 
     if (!startInput || !endInput) {
-      alert('Please configure date range filters.');
+      alert('Configure localized data tracking query windows.');
       return;
     }
 
-    // Convert regional HKT date boundaries to explicit ISO limits for structural Postgres query matching
     const startISO = new Date(`${startInput}T00:00:00+08:00`).toISOString();
     const endISO = new Date(`${endInput}T23:59:59+08:00`).toISOString();
 
-    // Directly query database rows matching range thresholds
     const { data, error } = await supabaseClient
       .from('clicks')
-      .select('timestamp, tracking_value')
+      .select('timestamp, tracking_value, url')
       .gte('timestamp', startISO)
       .lte('timestamp', endISO);
 
     if (error) {
-      alert('Error fetching data: ' + error.message);
+      alert('Failed query parsing context: ' + error.message);
       return;
     }
 
+    fetchedDataCache = data;
     document.getElementById('rawDataOutput').value = JSON.stringify(data, null, 2);
+    renderMetricsTable();
+  }
 
-    const counts = {};
-    data.forEach(row => {
-      const val = row.tracking_value;
-      counts[val] = (counts[val] || 0) + 1;
-    });
+  function cleanUrlString(rawUrl) {
+    if (!rawUrl || rawUrl === 'unknown') return 'unknown';
+    try {
+      const urlObj = new URL(rawUrl);
+      return urlObj.origin + urlObj.pathname;
+    } catch (e) {
+      return rawUrl.split('?')[0].split('#')[0];
+    }
+  }
 
-    const tbody = document.querySelector('#analyticsTable tbody');
+  function renderMetricsTable() {
+    const tbody = document.getElementById('mainTableBody');
     tbody.innerHTML = '';
 
-    const sortedEntries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-
-    if (sortedEntries.length === 0) {
+    if (fetchedDataCache.length === 0) {
+      document.getElementById('totalVolumeHeader').innerText = 'Total Click Volume';
       tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;">No click matches found for this range.</td></tr>';
       return;
     }
 
-    sortedEntries.forEach(([val, count]) => {
-      const row = `<tr><td><strong>${val}</strong></td><td>${count}</td></tr>`;
-      tbody.innerHTML += row;
+    const sortStrategy = document.getElementById('sortEngine').value;
+    const shouldStripParams = document.getElementById('stripParams').checked;
+    const searchQuery = document.getElementById('searchValueFilter').value.trim().toLowerCase();
+
+    const aggregation = {};
+    let filteredSumTotal = 0; // Tracks running total of filtered visible items
+    
+    fetchedDataCache.forEach(row => {
+      const val = row.tracking_value;
+      
+      if (searchQuery && !val.toLowerCase().includes(searchQuery)) {
+        return;
+      }
+
+      const url = shouldStripParams ? cleanUrlString(row.url) : (row.url || 'unknown');
+
+      if (!aggregation[val]) {
+        aggregation[val] = { total: 0, urls: {} };
+      }
+      aggregation[val].total += 1;
+      aggregation[val].urls[url] = (aggregation[val].urls[url] || 0) + 1;
+      
+      filteredSumTotal += 1; // Increment total only for items matching filters
     });
+
+    // Update the table column header text layout dynamically with the visible total
+    document.getElementById('totalVolumeHeader').innerText = `Total Click Volume (Sum: ${filteredSumTotal})`;
+
+    let entries = Object.entries(aggregation);
+
+    if (entries.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;">No tracking parameters match your search criteria.</td></tr>';
+      return;
+    }
+
+    if (sortStrategy === 'clicks_desc') {
+      entries.sort((a, b) => b[1].total - a[1].total);
+    } else if (sortStrategy === 'alpha_asc') {
+      entries.sort((a, b) => a[0].localeCompare(b[0]));
+    }
+
+    entries.forEach(([trackingValue, meta], index) => {
+      let sortedUrls = Object.entries(meta.urls);
+      if (sortStrategy === 'alpha_asc') {
+        sortedUrls.sort((a, b) => a[0].localeCompare(b[0]));
+      } else {
+        sortedUrls.sort((a, b) => b[1] - a[1]);
+      }
+
+      const mainRow = `
+        <tr class="clickable-row" onclick="toggleDrilldown(${index})">
+          <td><strong>📁 ${trackingValue}</strong></td>
+          <td><span class="click-count-text">${meta.total} clicks</span></td>
+        </tr>
+      `;
+
+      let drilldownRowsHtml = '';
+      sortedUrls.forEach(([url, count]) => {
+        drilldownRowsHtml += `
+          <tr>
+            <td>
+              ${url !== 'unknown' && url.startsWith('http') ? `<a href="${url}" target="_blank" style="color: #0366d6; word-break: break-all;">${url}</a>` : url}
+            </td>
+            <td><strong>${count}</strong></td>
+          </tr>
+        `;
+      });
+
+      const drilldownRow = `
+        <tr id="drilldown-${index}" class="drilldown-container">
+          <td colspan="2">
+            <table class="drilldown-table">
+              <thead>
+                <tr>
+                  <th>Target Origin Document URL</th>
+                  <th>Clicks Location Capture Count</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${drilldownRowsHtml}
+              </tbody>
+            </table>
+          </td>
+        </tr>
+      `;
+
+      tbody.innerHTML += mainRow + drilldownRow;
+    });
+  }
+
+  function toggleDrilldown(index) {
+    const el = document.getElementById(`drilldown-${index}`);
+    el.style.display = (el.style.display === 'table-row') ? 'none' : 'table-row';
   }
 </script>
 </body>
