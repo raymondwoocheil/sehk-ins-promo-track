@@ -15,8 +15,9 @@
     button { background: #2ea44f; color: white; border: none; cursor: pointer; font-weight: bold; }
     button:hover { background: #2c974b; }
     
-    .search-container { margin: 20px 0 10px 0; width: 100%; max-width: 400px; }
-    .search-container input { width: 100%; box-sizing: border-box; padding: 10px; border: 1px solid #d1d5da; }
+    .search-matrix { display: flex; gap: 15px; margin: 20px 0 15px 0; background: #fafbfc; padding: 15px; border: 1px solid #e1e4e8; border-radius: 4px; }
+    .search-matrix .input-field { flex: 1; min-width: 200px; }
+    .search-matrix input { width: 100%; box-sizing: border-box; padding: 10px; }
 
     table { width: 100%; border-collapse: collapse; margin-top: 15px; }
     th, td { text-align: left; padding: 12px; border-bottom: 1px solid #e1e4e8; }
@@ -62,10 +63,19 @@
     <button onclick="fetchSheetRecords()">Refresh From Sheets</button>
   </div>
 
-  <h3>Performance Tracking Matrix</h3>
-
-  <div class="search-container">
-    <input type="text" id="searchValueFilter" oninput="renderMetricsTable()" placeholder="🔍 Search Data Tracking Values...">
+  <div class="search-matrix">
+    <div class="input-field">
+      <label>Search Data Tracking Value</label>
+      <input type="text" id="searchTrackingVal" oninput="renderMetricsTable()" placeholder="🔍 e.g., hero_banner_click">
+    </div>
+    <div class="input-field">
+      <label>Search CID Parameter</label>
+      <input type="text" id="searchCid" oninput="renderMetricsTable()" placeholder="🔍 e.g., hk_promo_2026">
+    </div>
+    <div class="input-field">
+      <label>Search Other Parameters</label>
+      <input type="text" id="searchOtherParams" oninput="renderMetricsTable()" placeholder="🔍 e.g., utm_source=fb">
+    </div>
   </div>
 
   <table id="analyticsTable">
@@ -100,12 +110,11 @@
     const now = new Date();
     document.getElementById('endDate').value = getHKTDateString(now);
     const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(now.getDate() - 7);
+    thirtyDaysAgo.setDate(now.getDate() - 30);
     document.getElementById('startDate').value = getHKTDateString(thirtyDaysAgo);
     fetchSheetRecords();
   });
 
-  // Basic RFC 4180 CSV Text Parser Engine
   function parseCSVText(text) {
     const lines = [];
     let row = [""];
@@ -143,14 +152,12 @@
       
       const parsedEvents = [];
 
-      // Process Clicks (Skip header index 0: Timestamp, Tracking Value, Clean URL, CID, Other Parameters)
       for(let i = 1; i < clickRows.length; i++) {
         const r = clickRows[i];
         if (r.length < 3) continue;
         parsedEvents.push({ timestamp: r[0], tracking_value: r[1], url_clean: r[2], cid: r[3], other_params: r[4], event_type: 'click' });
       }
 
-      // Process Impressions
       for(let i = 1; i < impRows.length; i++) {
         const r = impRows[i];
         if (r.length < 3) continue;
@@ -172,14 +179,17 @@
     const endInput = document.getElementById('endDate').value;
     const sortStrategy = document.getElementById('sortEngine').value;
     const shouldStripParams = document.getElementById('stripParams').checked;
-    const searchQuery = document.getElementById('searchValueFilter').value.trim().toLowerCase();
+
+    // Fetch values from all 3 input filter boxes
+    const filterTrackingVal = document.getElementById('searchTrackingVal').value.trim().toLowerCase();
+    const filterCid = document.getElementById('searchCid').value.trim().toLowerCase();
+    const filterOtherParams = document.getElementById('searchOtherParams').value.trim().toLowerCase();
 
     if (!startInput || !endInput || fetchedEventsCache.length === 0) {
       tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">No tracking data available.</td></tr>';
       return;
     }
 
-    // Localized Date Bounds Calculation Rules
     const startBounds = new Date(`${startInput}T00:00:00+08:00`);
     const endBounds = new Date(`${endInput}T23:59:59+08:00`);
 
@@ -190,10 +200,15 @@
       const eventDate = new Date(row.timestamp);
       if (eventDate < startBounds || eventDate > endBounds) return;
 
-      const val = row.tracking_value;
-      if (searchQuery && !val.toLowerCase().includes(searchQuery)) return;
+      // Multi-Dimension Target Matching Layer Queries
+      const val = row.tracking_value || '';
+      const rowCid = row.cid || '';
+      const rowOther = row.other_params || '';
 
-      // URL reconstruct pathing based on data options parameter setups
+      if (filterTrackingVal && !val.toLowerCase().includes(filterTrackingVal)) return;
+      if (filterCid && !rowCid.toLowerCase().includes(filterCid)) return;
+      if (filterOtherParams && !rowOther.toLowerCase().includes(filterOtherParams)) return;
+
       const baseTrackedUrl = row.url_clean || 'unknown';
       const url = shouldStripParams ? baseTrackedUrl : (baseTrackedUrl + (row.cid ? '?cid=' + row.cid : '') + (row.other_params ? '&' + row.other_params : ''));
       const type = row.event_type;
@@ -223,7 +238,7 @@
     });
 
     if (entries.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">No items matching date filters.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">No elements matching current matrix fields.</td></tr>';
       return;
     }
 
