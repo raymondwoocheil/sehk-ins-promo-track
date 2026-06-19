@@ -3,19 +3,31 @@
 <head>
   <meta charset="UTF-8">
   <title>SEHK Insider Promotion Component Analytics</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     body { font-family: -apple-system, sans-serif; margin: 30px; background: #f6f8fa; color: #24292e; }
     .container { max-width: 1000px; margin: 0 auto; background: white; padding: 25px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
-    h2 { border-bottom: 1px solid #e1e4e8; padding-bottom: 10px; }
-    .filter-group { display: flex; gap: 15px; margin-bottom: 20px; align-items: flex-end; flex-wrap: wrap; }
+    h2 { border-bottom: 1px solid #e1e4e8; padding-bottom: 10px; margin-bottom: 20px; }
+    
+    .control-panel { background: #fafbfc; padding: 20px; border: 1px solid #e1e4e8; border-radius: 6px; margin-bottom: 20px; }
+    .filter-group { display: flex; gap: 15px; margin-bottom: 15px; align-items: flex-end; flex-wrap: wrap; }
     .input-field { display: flex; flex-direction: column; gap: 5px; }
     .checkbox-field { display: flex; align-items: center; gap: 8px; padding-bottom: 10px; cursor: pointer; user-select: none; }
     .checkbox-field input { width: 16px; height: 16px; cursor: pointer; }
-    input, select, button { padding: 8px 12px; border: 1px solid #d1d5da; border-radius: 4px; font-size: 14px; background: white; }
-    button { background: #2ea44f; color: white; border: none; cursor: pointer; font-weight: bold; }
-    button:hover { background: #2c974b; }
     
-    .search-matrix { display: flex; gap: 15px; margin: 20px 0 15px 0; background: #fafbfc; padding: 15px; border: 1px solid #e1e4e8; border-radius: 4px; }
+    .shortcuts-group { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; align-items: center; }
+    .shortcut-btn { background: #e1e4e8; color: #24292e; border: 1px solid #d1d5da; padding: 6px 12px; border-radius: 4px; font-size: 13px; cursor: pointer; font-weight: 500; }
+    .shortcut-btn:hover { background: #d1d5da; }
+    
+    input, select, button { padding: 8px 12px; border: 1px solid #d1d5da; border-radius: 4px; font-size: 14px; background: white; }
+    .btn-primary { background: #2ea44f; color: white; border: none; cursor: pointer; font-weight: bold; padding: 10px 20px; }
+    .btn-primary:hover { background: #2c974b; }
+    
+    .source-toggle { display: flex; background: #e1e4e8; padding: 3px; border-radius: 6px; border: 1px solid #d1d5da; }
+    .source-btn { background: transparent; border: none; padding: 6px 16px; font-size: 13px; font-weight: bold; cursor: pointer; border-radius: 4px; color: #586069; transition: all 0.2s; }
+    .source-btn.active { background: white; color: #24292e; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+
+    .search-matrix { display: flex; gap: 15px; margin-bottom: 20px; background: white; padding: 15px; border: 1px solid #e1e4e8; border-radius: 4px; }
     .search-matrix .input-field { flex: 1; min-width: 200px; }
     .search-matrix input { width: 100%; box-sizing: border-box; padding: 10px; }
 
@@ -30,37 +42,61 @@
     
     .metric-text { font-size: 14px; font-weight: normal; color: #24292e; }
     .ctr-high { color: #2ea44f; font-weight: bold; }
+    .badge-source { font-size: 12px; padding: 3px 8px; border-radius: 12px; font-weight: bold; margin-left: 10px; vertical-align: middle; }
+    .badge-sheet { background: #e2f5ea; color: #2ea44f; border: 1px solid #a2e1be; }
+    .badge-supabase { background: #e8f0fe; color: #1a73e8; border: 1px solid #b4d2fe; }
   </style>
 </head>
 <body>
 
 <div class="container">
-  <h2>SEHK Insider Promotion Component Analytics</h2>
+  <h2>
+    SEHK Insider Promotion Component Analytics 
+    <span id="sourceBadge" class="badge-source badge-sheet">Google Sheets Engine</span>
+  </h2>
   
-  <div class="filter-group">
-    <div class="input-field">
-      <label>Start Date (HKT)</label>
-      <input type="date" id="startDate">
+  <div class="control-panel">
+    <div class="filter-group">
+      <div class="input-field">
+        <label>Data Engine Source</label>
+        <div class="source-toggle">
+          <button id="srcSheetBtn" class="source-btn active" onclick="setDataSource('sheets')">Google Sheets</button>
+          <button id="srcSupabaseBtn" class="source-btn" onclick="setDataSource('supabase')">Supabase (Today Live)</button>
+        </div>
+      </div>
+      <div class="input-field">
+        <label>Start Date (HKT)</label>
+        <input type="date" id="startDate">
+      </div>
+      <div class="input-field">
+        <label>End Date (HKT)</label>
+        <input type="date" id="endDate">
+      </div>
+      <div class="input-field">
+        <label>Primary Sort Matrix</label>
+        <select id="sortEngine" onchange="renderMetricsTable()">
+          <option value="clicks_desc" selected>Most Clicks → Least Clicks</option>
+          <option value="ctr_desc">Highest CTR% → Lowest CTR%</option>
+          <option value="alpha_asc">Tracker Value (A-Z)</option>
+        </select>
+      </div>
+      <div class="input-field">
+        <label class="checkbox-field">
+          <input type="checkbox" id="stripParams" onchange="renderMetricsTable()" checked>
+          Aggregate Clean URLs
+        </label>
+      </div>
     </div>
-    <div class="input-field">
-      <label>End Date (HKT)</label>
-      <input type="date" id="endDate">
+
+    <div class="shortcuts-group">
+      <span style="font-size: 13px; font-weight: bold; color: #586069;">Quick Ranges:</span>
+      <button class="shortcut-btn" onclick="applyDateShortcut('today')">Today</button>
+      <button class="shortcut-btn" onclick="applyDateShortcut('yesterday')">Yesterday</button>
+      <button class="shortcut-btn" onclick="applyDateShortcut('last7')">Last 7 Days</button>
+      <button class="shortcut-btn" onclick="applyDateShortcut('thisWeek')">This Week (Mon-Sun)</button>
+      <button class="shortcut-btn" onclick="applyDateShortcut('thisMonth')">This Month</button>
+      <button class="btn-primary" style="margin-left: auto;" onclick="fetchRecordsPipeline()">Fetch Tracker Log</button>
     </div>
-    <div class="input-field">
-      <label>Sort Primary Matrix By</label>
-      <select id="sortEngine" onchange="renderMetricsTable()">
-        <option value="clicks_desc" selected>Most Clicks → Least Clicks</option>
-        <option value="ctr_desc">Highest CTR% → Lowest CTR%</option>
-        <option value="alpha_asc">Tracker Value (A-Z)</option>
-      </select>
-    </div>
-    <div class="input-field">
-      <label class="checkbox-field">
-        <input type="checkbox" id="stripParams" onchange="renderMetricsTable()" checked>
-        Aggregate Clean URLs (Ignore CID / Extra Params)
-      </label>
-    </div>
-    <button onclick="fetchSheetRecords()">Refresh From Sheets</button>
   </div>
 
   <div class="search-matrix">
@@ -88,17 +124,31 @@
       </tr>
     </thead>
     <tbody id="mainTableBody">
-      <tr><td colspan="4" style="text-align:center;">No data compiled yet. Click 'Refresh From Sheets' to sync.</td></tr>
+      <tr><td colspan="4" style="text-align:center;">Awaiting matrix buffer array construction load...</td></tr>
     </tbody>
   </table>
 </div>
 
 <script>
-  // --- PASTE YOUR GOOGLE SHEET CSV EXPORT LINKS HERE ---
+  // --- CREDENTIAL / EXPORT FEEDS ROUTING LINKS ---
   const CLICKS_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQo7-Pj0YYvK9m_ptkYkTtWwMKnq3nEFUwUyFgi67cMgOIls2v2ilopWjVOKE44QG4751VyauxO0WlL/pub?gid=0&single=true&output=csv';
   const IMPRESSIONS_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQo7-Pj0YYvK9m_ptkYkTtWwMKnq3nEFUwUyFgi67cMgOIls2v2ilopWjVOKE44QG4751VyauxO0WlL/pub?gid=1549224613&single=true&output=csv';
+  
+  const SUPABASE_URL = 'https://umjcfwragogvkuqoivoi.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_6-AZIOaEAOW3jeOoYf_CEQ_d40svSiz';
 
+  let supabaseClient = null;
+  if(SUPABASE_URL !== 'https://YOUR_PROJECT_ID.supabase.co') {
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  }
+
+  let currentDataSource = 'sheets'; // 'sheets' or 'supabase'
   let fetchedEventsCache = []; 
+
+  function getHKTDateObject(dateString) {
+    // Corrects matching timelines against localized boundaries cleanly
+    return new Date(`${dateString}T00:00:00+08:00`);
+  }
 
   function getHKTDateString(date) {
     const hktOptions = { timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit' };
@@ -107,40 +157,97 @@
   }
 
   window.addEventListener('DOMContentLoaded', () => {
-    const now = new Date();
-    document.getElementById('endDate').value = getHKTDateString(now);
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(now.getDate() - 30);
-    document.getElementById('startDate').value = getHKTDateString(thirtyDaysAgo);
-    fetchSheetRecords();
+    // Default range configuration mapping: Start=Yesterday, End=Yesterday
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = getHKTDateString(yesterday);
+    
+    document.getElementById('startDate').value = yesterdayStr;
+    document.getElementById('endDate').value = yesterdayStr;
+    
+    fetchRecordsPipeline();
   });
+
+  function setDataSource(source) {
+    currentDataSource = source;
+    const badge = document.getElementById('sourceBadge');
+    
+    if(source === 'sheets') {
+      document.getElementById('srcSheetBtn').classList.add('active');
+      document.getElementById('srcSupabaseBtn').classList.remove('active');
+      badge.innerText = "Google Sheets Engine";
+      badge.className = "badge-source badge-sheet";
+    } else {
+      document.getElementById('srcSheetBtn').classList.remove('active');
+      document.getElementById('srcSupabaseBtn').classList.add('active');
+      badge.innerText = "Supabase Live Instance";
+      badge.className = "badge-source badge-supabase";
+    }
+    fetchRecordsPipeline();
+  }
+
+  function applyDateShortcut(rangeType) {
+    const now = new Date();
+    let start = new Date();
+    let end = new Date();
+
+    switch(rangeType) {
+      case 'today':
+        break;
+      case 'yesterday':
+        start.setDate(now.getDate() - 1);
+        end.setDate(now.getDate() - 1);
+        break;
+      case 'last7':
+        start.setDate(now.getDate() - 7);
+        break;
+      case 'thisWeek':
+        // Align to Monday morning (HKT)
+        const currentDay = now.getDay();
+        const distanceToMonday = currentDay === 0 ? 6 : currentDay - 1;
+        start.setDate(now.getDate() - distanceToMonday);
+        break;
+      case 'thisMonth':
+        start = new Date(now.getFullYear(), now.getMonth(), 1);
+        break;
+    }
+
+    document.getElementById('startDate').value = getHKTDateString(start);
+    document.getElementById('endDate').value = getHKTDateString(end);
+    fetchRecordsPipeline();
+  }
 
   function parseCSVText(text) {
     const lines = [];
     let row = [""];
     let inQuotes = false;
-
     for (let i = 0; i < text.length; i++) {
-      let c = text[i];
-      let next = text[i+1];
+      let c = text[i]; let next = text[i+1];
       if (c === '"') {
         if (inQuotes && next === '"') { row[row.length - 1] += '"'; i++; }
         else { inQuotes = !inQuotes; }
-      } else if (c === ',' && !inQuotes) {
-        row.push('');
-      } else if ((c === '\r' || c === '\n') && !inQuotes) {
+      } else if (c === ',' && !inQuotes) { row.push(''); }
+      else if ((c === '\r' || c === '\n') && !inQuotes) {
         if (c === '\r' && next === '\n') { i++; }
         if (row.length > 1 || row[0] !== '') lines.push(row);
         row = [''];
-      } else {
-        row[row.length - 1] += c;
-      }
+      } else { row[row.length - 1] += c; }
     }
     if (row.length > 1 || row[0] !== '') lines.push(row);
     return lines;
   }
 
-  async function fetchSheetRecords() {
+  async function fetchRecordsPipeline() {
+    fetchedEventsCache = [];
+    
+    if (currentDataSource === 'sheets') {
+      await fetchFromGoogleSheets();
+    } else {
+      await fetchFromSupabaseLive();
+    }
+  }
+
+  async function fetchFromGoogleSheets() {
     try {
       const [clicksRes, impRes] = await Promise.all([
         fetch(CLICKS_CSV_URL).then(r => r.text()),
@@ -149,26 +256,50 @@
 
       const clickRows = parseCSVText(clicksRes);
       const impRows = parseCSVText(impRes);
-      
       const parsedEvents = [];
 
       for(let i = 1; i < clickRows.length; i++) {
-        const r = clickRows[i];
-        if (r.length < 3) continue;
+        const r = clickRows[i]; if (r.length < 3) continue;
         parsedEvents.push({ timestamp: r[0], tracking_value: r[1], url_clean: r[2], cid: r[3], other_params: r[4], event_type: 'click' });
       }
-
       for(let i = 1; i < impRows.length; i++) {
-        const r = impRows[i];
-        if (r.length < 3) continue;
+        const r = impRows[i]; if (r.length < 3) continue;
         parsedEvents.push({ timestamp: r[0], tracking_value: r[1], url_clean: r[2], cid: r[3], other_params: r[4], event_type: 'impression' });
       }
 
       fetchedEventsCache = parsedEvents;
       renderMetricsTable();
     } catch (e) {
-      alert("Error loading csv feeds from Google Sheets. Check your publishing URLs: " + e.message);
+      alert("Error loading CSV feeds from Google Sheets: " + e.message);
     }
+  }
+
+  async function fetchFromSupabaseLive() {
+    if(!supabaseClient) {
+      alert("Please configure your SUPABASE_URL and SUPABASE_ANON_KEY fields inside the script.");
+      return;
+    }
+    
+    const startInput = document.getElementById('startDate').value;
+    const endInput = document.getElementById('endDate').value;
+    if (!startInput || !endInput) return;
+
+    const startISO = new Date(`${startInput}T00:00:00+08:00`).toISOString();
+    const endISO = new Date(`${endInput}T23:59:59+08:00`).toISOString();
+
+    const { data, error } = await supabaseClient
+      .from('ctr_analytics')
+      .select('timestamp, tracking_value, url_clean, cid, other_params, event_type')
+      .gte('timestamp', startISO)
+      .lte('timestamp', endISO);
+
+    if (error) {
+      alert('Failed querying records from Supabase context: ' + error.message);
+      return;
+    }
+
+    fetchedEventsCache = data;
+    renderMetricsTable();
   }
 
   function renderMetricsTable() {
@@ -180,13 +311,12 @@
     const sortStrategy = document.getElementById('sortEngine').value;
     const shouldStripParams = document.getElementById('stripParams').checked;
 
-    // Fetch values from all 3 input filter boxes
     const filterTrackingVal = document.getElementById('searchTrackingVal').value.trim().toLowerCase();
     const filterCid = document.getElementById('searchCid').value.trim().toLowerCase();
     const filterOtherParams = document.getElementById('searchOtherParams').value.trim().toLowerCase();
 
-    if (!startInput || !endInput || fetchedEventsCache.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">No tracking data available.</td></tr>';
+    if (fetchedEventsCache.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">No tracking data parsed for this collection context.</td></tr>';
       return;
     }
 
@@ -197,10 +327,12 @@
     let totalClicksSum = 0;
     
     fetchedEventsCache.forEach(row => {
-      const eventDate = new Date(row.timestamp);
-      if (eventDate < startBounds || eventDate > endBounds) return;
+      // Supabase queries pass date logic directly on server levels, Google Sheets filters locally here
+      if (currentDataSource === 'sheets') {
+        const eventDate = new Date(row.timestamp);
+        if (eventDate < startBounds || eventDate > endBounds) return;
+      }
 
-      // Multi-Dimension Target Matching Layer Queries
       const val = row.tracking_value || '';
       const rowCid = row.cid || '';
       const rowOther = row.other_params || '';
@@ -238,7 +370,7 @@
     });
 
     if (entries.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">No elements matching current matrix fields.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">No match criteria found.</td></tr>';
       return;
     }
 
