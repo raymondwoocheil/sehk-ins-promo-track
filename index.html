@@ -7,13 +7,16 @@
   <style>
     body { font-family: -apple-system, sans-serif; margin: 30px; background: #f6f8fa; color: #24292e; }
     .container { max-width: 1000px; margin: 0 auto; background: white; padding: 25px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
-    h2 { border-bottom: 1px solid #e1e4e8; padding-bottom: 10px; margin-bottom: 20px; }
+    h2 { border-bottom: 1px solid #e1e4e8; padding-bottom: 10px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; }
     
+    .nav-tabs { display: flex; gap: 10px; border-bottom: 2px solid #e1e4e8; margin-bottom: 20px; }
+    .nav-btn { background: #f6f8fa; border: 1px solid #e1e4e8; border-bottom: none; padding: 10px 20px; font-size: 14px; font-weight: bold; cursor: pointer; border-radius: 6px 6px 0 0; color: #586069; }
+    .nav-btn.active { background: white; color: #0366d6; border-color: #e1e4e8; margin-bottom: -2px; border-top: 3px solid #0366d6; }
+
     .control-panel { background: #fafbfc; padding: 20px; border: 1px solid #e1e4e8; border-radius: 6px; margin-bottom: 20px; }
     .filter-group { display: flex; gap: 15px; margin-bottom: 15px; align-items: flex-end; flex-wrap: wrap; }
     .input-field { display: flex; flex-direction: column; gap: 5px; }
     .checkbox-field { display: flex; align-items: center; gap: 8px; padding-bottom: 10px; cursor: pointer; user-select: none; }
-    .checkbox-field input { width: 16px; height: 16px; cursor: pointer; }
     
     .shortcuts-group { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; align-items: center; }
     .shortcut-btn { background: #e1e4e8; color: #24292e; border: 1px solid #d1d5da; padding: 6px 12px; border-radius: 4px; font-size: 13px; cursor: pointer; font-weight: 500; }
@@ -24,11 +27,11 @@
     .btn-primary:hover { background: #2c974b; }
     
     .source-toggle { display: flex; background: #e1e4e8; padding: 3px; border-radius: 6px; border: 1px solid #d1d5da; }
-    .source-btn { background: transparent; border: none; padding: 6px 16px; font-size: 13px; font-weight: bold; cursor: pointer; border-radius: 4px; color: #586069; transition: all 0.2s; }
+    .source-btn { background: transparent; border: none; padding: 6px 16px; font-size: 13px; font-weight: bold; cursor: pointer; border-radius: 4px; color: #586069; }
     .source-btn.active { background: white; color: #24292e; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
 
     .search-matrix { display: flex; gap: 15px; margin-bottom: 20px; background: white; padding: 15px; border: 1px solid #e1e4e8; border-radius: 4px; }
-    .search-matrix .input-field { flex: 1; min-width: 200px; }
+    .search-matrix .input-field { flex: 1; min-width: 180px; }
     .search-matrix input { width: 100%; box-sizing: border-box; padding: 10px; }
 
     table { width: 100%; border-collapse: collapse; margin-top: 15px; }
@@ -38,11 +41,10 @@
     .clickable-row:hover { background: #f1f8ff; }
     .drilldown-container { background: #fafbfc; padding: 10px 20px; border-bottom: 1px solid #e1e4e8; display: none; }
     .drilldown-table { width: 100%; margin: 5px 0 15px 0; font-size: 13px; background: white; border: 1px solid #e1e4e8; }
-    .drilldown-table th { background: #eaecef; }
     
     .metric-text { font-size: 14px; font-weight: normal; color: #24292e; }
     .ctr-high { color: #2ea44f; font-weight: bold; }
-    .badge-source { font-size: 12px; padding: 3px 8px; border-radius: 12px; font-weight: bold; margin-left: 10px; vertical-align: middle; }
+    .badge-source { font-size: 12px; padding: 4px 10px; border-radius: 12px; font-weight: bold; }
     .badge-sheet { background: #e2f5ea; color: #2ea44f; border: 1px solid #a2e1be; }
     .badge-supabase { background: #e8f0fe; color: #1a73e8; border: 1px solid #b4d2fe; }
   </style>
@@ -50,8 +52,13 @@
 <body>
 
 <div class="container">
+  <div class="nav-tabs">
+    <button id="tabCtrBtn" class="nav-btn active" onclick="switchWorkspaceView('ctr')">📊 CTR Click Logs</button>
+    <button id="tabVoucherBtn" class="nav-btn" onclick="switchWorkspaceView('voucher')">🎟️ Voucher Tracking Matrix</button>
+  </div>
+
   <h2>
-    SEHK Insider Promotion Component Analytics 
+    <span id="workspaceTitle">SEHK Insider Promotion Component Analytics</span>
     <span id="sourceBadge" class="badge-source badge-sheet">Google Sheets Engine</span>
   </h2>
   
@@ -75,10 +82,7 @@
       <div class="input-field">
         <label>Primary Sort Matrix</label>
         <select id="sortEngine" onchange="renderMetricsTable()">
-          <option value="clicks_desc" selected>Most Clicks → Least Clicks</option>
-          <option value="ctr_desc">Highest CTR% → Lowest CTR%</option>
-          <option value="alpha_asc">Tracker Value (A-Z)</option>
-        </select>
+          </select>
       </div>
       <div class="input-field">
         <label class="checkbox-field">
@@ -93,7 +97,7 @@
       <button class="shortcut-btn" onclick="applyDateShortcut('today')">Today</button>
       <button class="shortcut-btn" onclick="applyDateShortcut('yesterday')">Yesterday</button>
       <button class="shortcut-btn" onclick="applyDateShortcut('last7')">Last 7 Days</button>
-      <button class="shortcut-btn" onclick="applyDateShortcut('thisWeek')">This Week (Mon-Sun)</button>
+      <button class="shortcut-btn" onclick="applyDateShortcut('thisWeek')">This Week</button>
       <button class="shortcut-btn" onclick="applyDateShortcut('thisMonth')">This Month</button>
       <button class="btn-primary" style="margin-left: auto;" onclick="fetchRecordsPipeline()">Fetch Tracker Log</button>
       <button class="btn-primary" style="background: #0366d6; margin-left: 10px;" onclick="copyTableAsTSV()">Copy as TSV</button>
@@ -102,43 +106,39 @@
 
   <div class="search-matrix">
     <div class="input-field">
-      <label>Search Data Tracking Value</label>
-      <input type="text" id="searchTrackingVal" oninput="renderMetricsTable()" placeholder="🔍 e.g., hero_banner_click">
+      <label id="searchLabelMain">Search Data Tracking Value</label>
+      <input type="text" id="searchTrackingVal" oninput="renderMetricsTable()" placeholder="🔍 Search component text...">
     </div>
     <div class="input-field">
-      <label>Search URL</label>
-      <input type="text" id="searchUrlClean" oninput="renderMetricsTable()" placeholder="🔍 e.g., /checkout or pricing">
+      <label>Search Clean URL</label>
+      <input type="text" id="searchUrlClean" oninput="renderMetricsTable()" placeholder="🔍 e.g., /checkout">
     </div>
     <div class="input-field">
-      <label>Search CID</label>
-      <input type="text" id="searchCid" oninput="renderMetricsTable()" placeholder="🔍 e.g., hk_promo_2026">
+      <label>Search CID Parameter</label>
+      <input type="text" id="searchCid" oninput="renderMetricsTable()" placeholder="🔍 e.g., hk_promo">
     </div>
     <div class="input-field">
       <label>Search Other Parameters</label>
-      <input type="text" id="searchOtherParams" oninput="renderMetricsTable()" placeholder="🔍 e.g., utm_source=fb">
+      <input type="text" id="searchOtherParams" oninput="renderMetricsTable()" placeholder="🔍 Query context parameters...">
     </div>
   </div>
 
   <table id="analyticsTable">
-    <thead>
-      <tr>
-        <th>Data Tracking Value</th>
-        <th>Impressions</th>
-        <th id="totalVolumeHeader">Clicks</th>
-        <th>CTR %</th>
-      </tr>
-    </thead>
+    <thead id="tableHeaderBlock">
+      </thead>
     <tbody id="mainTableBody">
-      <tr><td colspan="4" style="text-align:center;">Awaiting matrix buffer array construction load...</td></tr>
+      <tr><td colspan="4" style="text-align:center;">Awaiting workspace buffer setup initialization parameters...</td></tr>
     </tbody>
   </table>
 </div>
 
 <script>
-  // --- CREDENTIAL / EXPORT FEEDS ROUTING LINKS ---
+  // --- GOOGLE SHEETS CSV EXPORT DESTINATIONS ---
   const CLICKS_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQo7-Pj0YYvK9m_ptkYkTtWwMKnq3nEFUwUyFgi67cMgOIls2v2ilopWjVOKE44QG4751VyauxO0WlL/pub?gid=0&single=true&output=csv';
   const IMPRESSIONS_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQo7-Pj0YYvK9m_ptkYkTtWwMKnq3nEFUwUyFgi67cMgOIls2v2ilopWjVOKE44QG4751VyauxO0WlL/pub?gid=1549224613&single=true&output=csv';
+  const VOUCHERS_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQo7-Pj0YYvK9m_ptkYkTtWwMKnq3nEFUwUyFgi67cMgOIls2v2ilopWjVOKE44QG4751VyauxO0WlL/pub?gid=1996162120&single=true&output=csv';
   
+  // --- SUPABASE ACCESS CONFIGURATIONS ---
   const SUPABASE_URL = 'https://umjcfwragogvkuqoivoi.supabase.co';
   const SUPABASE_ANON_KEY = 'sb_publishable_6-AZIOaEAOW3jeOoYf_CEQ_d40svSiz';
 
@@ -147,103 +147,97 @@
     supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   }
 
+  let activeWorkspace = 'ctr'; // 'ctr' or 'voucher'
   let currentDataSource = 'sheets'; // 'sheets' or 'supabase'
   let fetchedEventsCache = []; 
 
-  function getHKTDateObject(dateString) {
-    // Corrects matching timelines against localized boundaries cleanly
-    return new Date(`${dateString}T00:00:00+08:00`);
-  }
-
   function getHKTDateString(date) {
-    const hktOptions = { timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit' };
-    const formatter = new Intl.DateTimeFormat('en-CA', hktOptions);
+    const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit' });
     return formatter.format(date);
   }
 
   window.addEventListener('DOMContentLoaded', () => {
-    // Default range configuration mapping: Start=Yesterday, End=Yesterday
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayStr = getHKTDateString(yesterday);
-    
     document.getElementById('startDate').value = yesterdayStr;
     document.getElementById('endDate').value = yesterdayStr;
     
+    updateSortDropdownInterface();
     fetchRecordsPipeline();
   });
+
+  function switchWorkspaceView(viewMode) {
+    activeWorkspace = viewMode;
+    document.getElementById('tabCtrBtn').classList.toggle('active', viewMode === 'ctr');
+    document.getElementById('tabVoucherBtn').classList.toggle('active', viewMode === 'voucher');
+    document.getElementById('workspaceTitle').innerText = viewMode === 'ctr' ? "Click & CTR Performance Panel" : "Voucher Code Redemption Panel";
+    document.getElementById('searchLabelMain').innerText = viewMode === 'ctr' ? "Search Data Tracking Value" : "Search Voucher Code Target";
+    
+    updateSortDropdownInterface();
+    fetchRecordsPipeline();
+  }
+
+  function updateSortDropdownInterface() {
+    const sortDropdown = document.getElementById('sortEngine');
+    if (activeWorkspace === 'ctr') {
+      sortDropdown.innerHTML = `
+        <option value="clicks_desc" selected>Most Clicks → Least Clicks</option>
+        <option value="ctr_desc">Highest CTR% → Lowest CTR%</option>
+        <option value="alpha_asc">Tracker Value (A-Z)</option>
+      `;
+    } else {
+      sortDropdown.innerHTML = `
+        <option value="vouchers_desc" selected>Most Applied → Least Applied</option>
+        <option value="alpha_asc">Voucher Code String (A-Z)</option>
+      `;
+    }
+  }
 
   function setDataSource(source) {
     currentDataSource = source;
     const badge = document.getElementById('sourceBadge');
-    
-    if(source === 'sheets') {
-      document.getElementById('srcSheetBtn').classList.add('active');
-      document.getElementById('srcSupabaseBtn').classList.remove('active');
-      badge.innerText = "Google Sheets Engine";
-      badge.className = "badge-source badge-sheet";
-    } else {
-      document.getElementById('srcSheetBtn').classList.remove('active');
-      document.getElementById('srcSupabaseBtn').classList.add('active');
-      badge.innerText = "Supabase Live Instance";
-      badge.className = "badge-source badge-supabase";
-    }
+    document.getElementById('srcSheetBtn').classList.toggle('active', source === 'sheets');
+    document.getElementById('srcSupabaseBtn').classList.toggle('active', source === 'supabase');
+    badge.innerText = source === 'sheets' ? "Google Sheets Engine" : "Supabase Live Instance";
+    badge.className = `badge-source ${source === 'sheets' ? 'badge-sheet' : 'badge-supabase'}`;
     fetchRecordsPipeline();
   }
 
   function applyDateShortcut(rangeType) {
-    const now = new Date();
-    let start = new Date();
-    let end = new Date();
-
+    const now = new Date(); let start = new Date(); let end = new Date();
     switch(rangeType) {
-      case 'today':
-        break;
-      case 'yesterday':
-        start.setDate(now.getDate() - 1);
-        end.setDate(now.getDate() - 1);
-        break;
-      case 'last7':
-        start.setDate(now.getDate() - 7);
-        break;
+      case 'today': break;
+      case 'yesterday': start.setDate(now.getDate() - 1); end.setDate(now.getDate() - 1); break;
+      case 'last7': start.setDate(now.getDate() - 7); break;
       case 'thisWeek':
-        // Align to Monday morning (HKT)
         const currentDay = now.getDay();
         const distanceToMonday = currentDay === 0 ? 6 : currentDay - 1;
         start.setDate(now.getDate() - distanceToMonday);
         break;
-      case 'thisMonth':
-        start = new Date(now.getFullYear(), now.getMonth(), 1);
-        break;
+      case 'thisMonth': start = new Date(now.getFullYear(), now.getMonth(), 1); break;
     }
-
     document.getElementById('startDate').value = getHKTDateString(start);
     document.getElementById('endDate').value = getHKTDateString(end);
     fetchRecordsPipeline();
   }
 
   function parseCSVText(text) {
-    const lines = [];
-    let row = [""];
-    let inQuotes = false;
+    const lines = []; let row = [""]; let inQuotes = false;
     for (let i = 0; i < text.length; i++) {
       let c = text[i]; let next = text[i+1];
-      if (c === '"') {
-        if (inQuotes && next === '"') { row[row.length - 1] += '"'; i++; }
-        else { inQuotes = !inQuotes; }
-      } else if (c === ',' && !inQuotes) { row.push(''); }
+      if (c === '"') { if (inQuotes && next === '"') { row[row.length - 1] += '"'; i++; } else { inQuotes = !inQuotes; } }
+      else if (c === ',' && !inQuotes) { row.push(''); }
       else if ((c === '\r' || c === '\n') && !inQuotes) {
         if (c === '\r' && next === '\n') { i++; }
-        if (row.length > 1 || row[0] !== '') lines.push(row);
-        row = [''];
+        if (row.length > 1 || row[0] !== '') lines.push(row); row = [''];
       } else { row[row.length - 1] += c; }
     }
-    if (row.length > 1 || row[0] !== '') lines.push(row);
-    return lines;
+    if (row.length > 1 || row[0] !== '') lines.push(row); return lines;
   }
 
   async function fetchRecordsPipeline() {
     fetchedEventsCache = [];
+    document.getElementById('mainTableBody').innerHTML = '<tr><td colspan="4" style="text-align:center;">Synchronizing active data fields...</td></tr>';
     
     if (currentDataSource === 'sheets') {
       await fetchFromGoogleSheets();
@@ -254,172 +248,167 @@
 
   async function fetchFromGoogleSheets() {
     try {
-      const [clicksRes, impRes] = await Promise.all([
-        fetch(CLICKS_CSV_URL).then(r => r.text()),
-        fetch(IMPRESSIONS_CSV_URL).then(r => r.text())
-      ]);
-
-      const clickRows = parseCSVText(clicksRes);
-      const impRows = parseCSVText(impRes);
-      const parsedEvents = [];
-
-      for(let i = 1; i < clickRows.length; i++) {
-        const r = clickRows[i]; if (r.length < 3) continue;
-        parsedEvents.push({ timestamp: r[0], tracking_value: r[1], url_clean: r[2], cid: r[3], other_params: r[4], event_type: 'click' });
+      if (activeWorkspace === 'ctr') {
+        const [clicksRes, impRes] = await Promise.all([
+          fetch(CLICKS_CSV_URL).then(r => r.text()),
+          fetch(IMPRESSIONS_CSV_URL).then(r => r.text())
+        ]);
+        const clickRows = parseCSVText(clicksRes);
+        const impRows = parseCSVText(impRes);
+        const parsed = [];
+        for(let i = 1; i < clickRows.length; i++) { const r = clickRows[i]; if(r.length >= 3) parsed.push({ timestamp: r[0], tracking_value: r[1], url_clean: r[2], cid: r[3], other_params: r[4], event_type: 'click' }); }
+        for(let i = 1; i < impRows.length; i++) { const r = impRows[i]; if(r.length >= 3) parsed.push({ timestamp: r[0], tracking_value: r[1], url_clean: r[2], cid: r[3], other_params: r[4], event_type: 'impression' }); }
+        fetchedEventsCache = parsed;
+      } else {
+        const res = await fetch(VOUCHERS_CSV_URL).then(r => r.text());
+        const rows = parseCSVText(res);
+        const parsed = [];
+        for(let i = 1; i < rows.length; i++) { const r = rows[i]; if(r.length >= 2) parsed.push({ timestamp: r[0], voucher_code: r[1], url_clean: r[2], cid: r[3], other_params: r[4] }); }
+        fetchedEventsCache = parsed;
       }
-      for(let i = 1; i < impRows.length; i++) {
-        const r = impRows[i]; if (r.length < 3) continue;
-        parsedEvents.push({ timestamp: r[0], tracking_value: r[1], url_clean: r[2], cid: r[3], other_params: r[4], event_type: 'impression' });
-      }
-
-      fetchedEventsCache = parsedEvents;
       renderMetricsTable();
     } catch (e) {
-      alert("Error loading CSV feeds from Google Sheets: " + e.message);
+      alert("Error parsing execution matrix outputs from Google Sheets: " + e.message);
     }
   }
 
   async function fetchFromSupabaseLive() {
-    if(!supabaseClient) {
-      alert("Please configure your SUPABASE_URL and SUPABASE_ANON_KEY fields inside the script.");
-      return;
-    }
-    
+    if(!supabaseClient) { alert("Please input active Supabase authorization profiles first."); return; }
     const startInput = document.getElementById('startDate').value;
     const endInput = document.getElementById('endDate').value;
-    if (!startInput || !endInput) return;
-
     const startISO = new Date(`${startInput}T00:00:00+08:00`).toISOString();
     const endISO = new Date(`${endInput}T23:59:59+08:00`).toISOString();
 
-    const { data, error } = await supabaseClient
-      .from('ctr_analytics')
-      .select('timestamp, tracking_value, url_clean, cid, other_params, event_type')
-      .gte('timestamp', startISO)
-      .lte('timestamp', endISO);
+    let query = activeWorkspace === 'ctr' 
+      ? supabaseClient.from('ctr_analytics').select('timestamp, tracking_value, url_clean, cid, other_params, event_type')
+      : supabaseClient.from('vouchers').select('timestamp, voucher_code, url_clean, cid, other_params');
 
-    if (error) {
-      alert('Failed querying records from Supabase context: ' + error.message);
-      return;
-    }
-
+    const { data, error } = await query.gte('timestamp', startISO).lte('timestamp', endISO);
+    if (error) { alert('Query context exception error execution routine: ' + error.message); return; }
+    
     fetchedEventsCache = data;
     renderMetricsTable();
   }
 
   function renderMetricsTable() {
     const tbody = document.getElementById('mainTableBody');
+    const thead = document.getElementById('tableHeaderBlock');
     tbody.innerHTML = '';
 
-    const startInput = document.getElementById('startDate').value;
-    const endInput = document.getElementById('endDate').value;
     const sortStrategy = document.getElementById('sortEngine').value;
     const shouldStripParams = document.getElementById('stripParams').checked;
 
-    const filterTrackingVal = document.getElementById('searchTrackingVal').value.trim().toLowerCase();
-    const filterUrlClean = document.getElementById('searchUrlClean').value.trim().toLowerCase();
+    const filterMain = document.getElementById('searchTrackingVal').value.trim().toLowerCase();
+    const filterUrl = document.getElementById('searchUrlClean').value.trim().toLowerCase();
     const filterCid = document.getElementById('searchCid').value.trim().toLowerCase();
-    const filterOtherParams = document.getElementById('searchOtherParams').value.trim().toLowerCase();
+    const filterOther = document.getElementById('searchOtherParams').value.trim().toLowerCase();
+
+    // Setup Header UI Schema based on current workspace
+    if (activeWorkspace === 'ctr') {
+      thead.innerHTML = `<tr><th>Data Tracking Value</th><th>Impressions</th><th id="totalVolumeHeader">Clicks</th><th>CTR %</th></tr>`;
+    } else {
+      thead.innerHTML = `<tr><th>Voucher Code Applied</th><th colspan="2" id="totalVolumeHeader">Total Application Actions</th><th>Usage Share %</th></tr>`;
+    }
 
     if (fetchedEventsCache.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">No tracking data parsed for this collection context.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">No tracking parameters matched this calendar date range block.</td></tr>';
       return;
     }
 
-    const startBounds = new Date(`${startInput}T00:00:00+08:00`);
-    const endBounds = new Date(`${endInput}T23:59:59+08:00`);
+    const startBounds = new Date(`${document.getElementById('startDate').value}T00:00:00+08:00`);
+    const endBounds = new Date(`${document.getElementById('endDate').value}T23:59:59+08:00`);
 
     const aggregation = {};
-    let totalClicksSum = 0;
+    let globalActionCountSum = 0;
     
     fetchedEventsCache.forEach(row => {
-      // Supabase queries pass date logic directly on server levels, Google Sheets filters locally here
       if (currentDataSource === 'sheets') {
-        const eventDate = new Date(row.timestamp);
-        if (eventDate < startBounds || eventDate > endBounds) return;
+        const d = new Date(row.timestamp); if (d < startBounds || d > endBounds) return;
       }
 
-      const val = row.tracking_value || '';
+      const mainVal = activeWorkspace === 'ctr' ? (row.tracking_value || '') : (row.voucher_code || '');
+      const rowUrl = row.url_clean || '';
       const rowCid = row.cid || '';
       const rowOther = row.other_params || '';
 
-      if (filterTrackingVal && !val.toLowerCase().includes(filterTrackingVal)) return;
-      if (filterUrlClean && !rowUrlClean.toLowerCase().includes(filterUrlClean)) return;
+      if (filterMain && !mainVal.toLowerCase().includes(filterMain)) return;
+      if (filterUrl && !rowUrl.toLowerCase().includes(filterUrl)) return;
       if (filterCid && !rowCid.toLowerCase().includes(filterCid)) return;
-      if (filterOtherParams && !rowOther.toLowerCase().includes(filterOtherParams)) return;
+      if (filterOther && !rowOther.toLowerCase().includes(filterOther)) return;
 
       const baseTrackedUrl = row.url_clean || 'unknown';
       const url = shouldStripParams ? baseTrackedUrl : (baseTrackedUrl + (row.cid ? '?cid=' + row.cid : '') + (row.other_params ? '&' + row.other_params : ''));
-      const type = row.event_type;
 
-      if (!aggregation[val]) {
-        aggregation[val] = { clicks: 0, impressions: 0, urls: {} };
-      }
-      if (!aggregation[val].urls[url]) {
-        aggregation[val].urls[url] = { clicks: 0, impressions: 0 };
-      }
+      if (!aggregation[mainVal]) { aggregation[mainVal] = { total: 0, clicks: 0, impressions: 0, urls: {} }; }
+      if (!aggregation[mainVal].urls[url]) { aggregation[mainVal].urls[url] = { total: 0, clicks: 0, impressions: 0 }; }
 
-      if (type === 'click') {
-        aggregation[val].clicks += 1;
-        aggregation[val].urls[url].clicks += 1;
-        totalClicksSum += 1;
-      } else if (type === 'impression') {
-        aggregation[val].impressions += 1;
-        aggregation[val].urls[url].impressions += 1;
+      if (activeWorkspace === 'ctr') {
+        if (row.event_type === 'click') { aggregation[mainVal].clicks++; aggregation[mainVal].urls[url].clicks++; globalActionCountSum++; }
+        else { aggregation[mainVal].impressions++; aggregation[mainVal].urls[url].impressions++; }
+      } else {
+        aggregation[mainVal].total++;
+        aggregation[mainVal].urls[url].total++;
+        globalActionCountSum++;
       }
     });
 
-    document.getElementById('totalVolumeHeader').innerText = `Clicks (Sum: ${totalClicksSum})`;
+    document.getElementById('totalVolumeHeader').innerText = activeWorkspace === 'ctr' ? `Clicks (Sum: ${globalActionCountSum})` : `Total Conversions (Sum: ${globalActionCountSum})`;
 
-    let entries = Object.entries(aggregation).map(([val, meta]) => {
-      const ctr = meta.impressions > 0 ? ((meta.clicks / meta.impressions) * 100).toFixed(2) : '0.00';
-      return [val, { ...meta, ctr: parseFloat(ctr) }];
+    let entries = Object.entries(aggregation).map(([key, meta]) => {
+      let rateMetric = 0;
+      if (activeWorkspace === 'ctr') {
+        rateMetric = meta.impressions > 0 ? ((meta.clicks / meta.impressions) * 100).toFixed(2) : '0.00';
+      } else {
+        rateMetric = globalActionCountSum > 0 ? ((meta.total / globalActionCountSum) * 100).toFixed(2) : '0.00';
+      }
+      return [key, { ...meta, rate: parseFloat(rateMetric) }];
     });
 
-    if (entries.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">No match criteria found.</td></tr>';
-      return;
-    }
+    if (entries.length === 0) { tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">No values found matching current input bounds.</td></tr>'; return; }
 
-    if (sortStrategy === 'clicks_desc') {
-      entries.sort((a, b) => b[1].clicks - a[1].clicks);
-    } else if (sortStrategy === 'ctr_desc') {
-      entries.sort((a, b) => b[1].ctr - a[1].ctr);
-    } else if (sortStrategy === 'alpha_asc') {
-      entries.sort((a, b) => a[0].localeCompare(b[0]));
-    }
+    // Multi-Strategy Primary Sorter Processing Functions
+    if (sortStrategy === 'clicks_desc') entries.sort((a, b) => b[1].clicks - a[1].clicks);
+    else if (sortStrategy === 'ctr_desc') entries.sort((a, b) => b[1].rate - a[1].rate);
+    else if (sortStrategy === 'vouchers_desc') entries.sort((a, b) => b[1].total - a[1].total);
+    else if (sortStrategy === 'alpha_asc') entries.sort((a, b) => a[0].localeCompare(b[0]));
 
-    entries.forEach(([trackingValue, meta], index) => {
+    entries.forEach(([primaryKey, meta], index) => {
       let urlEntries = Object.entries(meta.urls).map(([url, uMeta]) => {
-        const uCtr = uMeta.impressions > 0 ? ((uMeta.clicks / uMeta.impressions) * 100).toFixed(2) : '0.00';
-        return [url, { ...uMeta, ctr: parseFloat(uCtr) }];
+        let uRate = activeWorkspace === 'ctr'
+          ? (uMeta.impressions > 0 ? ((uMeta.clicks / uMeta.impressions) * 100).toFixed(2) : '0.00')
+          : (globalActionCountSum > 0 ? ((uMeta.total / globalActionCountSum) * 100).toFixed(2) : '0.00');
+        return [url, { ...uMeta, rate: parseFloat(uRate) }];
       });
 
-      if (sortStrategy === 'ctr_desc') {
-        urlEntries.sort((a, b) => b[1].ctr - a[1].ctr);
-      } else if (sortStrategy === 'alpha_asc') {
-        urlEntries.sort((a, b) => a[0].localeCompare(b[0]));
-      } else {
-        urlEntries.sort((a, b) => b[1].clicks - a[1].clicks);
-      }
-
-      const mainRow = `
+      const mainRow = activeWorkspace === 'ctr' ? `
         <tr class="clickable-row" onclick="toggleDrilldown(${index})">
-          <td><strong>📁 ${trackingValue}</strong></td>
+          <td><strong>📁 ${primaryKey}</strong></td>
           <td class="metric-text">${meta.impressions}</td>
           <td class="metric-text">${meta.clicks}</td>
-          <td class="metric-text ${meta.ctr > 5 ? 'ctr-high' : ''}">${meta.ctr}%</td>
+          <td class="metric-text ${meta.rate > 5 ? 'ctr-high' : ''}">${meta.rate}%</td>
+        </tr>
+      ` : `
+        <tr class="clickable-row" onclick="toggleDrilldown(${index})">
+          <td><strong>🎟️ ${primaryKey}</strong></td>
+          <td colspan="2" class="metric-text">${meta.total} applications</td>
+          <td class="metric-text">${meta.rate}% allocation share</td>
         </tr>
       `;
 
-      let drilldownRowsHtml = '';
+      let subRowsHtml = '';
       urlEntries.forEach(([url, uMeta]) => {
-        drilldownRowsHtml += `
+        subRowsHtml += activeWorkspace === 'ctr' ? `
           <tr>
-            <td>${url.startsWith('http') ? `<a href="${url}" target="_blank" style="color: #0366d6; word-break: break-all;">${url}</a>` : url}</td>
+            <td><a href="${url}" target="_blank" style="color: #0366d6; word-break: break-all;">${url}</a></td>
             <td>${uMeta.impressions}</td>
             <td>${uMeta.clicks}</td>
-            <td><span class="${uMeta.ctr > 5 ? 'ctr-high' : ''}">${uMeta.ctr}%</span></td>
+            <td><span class="${uMeta.rate > 5 ? 'ctr-high' : ''}">${uMeta.rate}%</span></td>
+          </tr>
+        ` : `
+          <tr>
+            <td><a href="${url}" target="_blank" style="color: #0366d6; word-break: break-all;">${url}</a></td>
+            <td colspan="2">${uMeta.total} records logged</td>
+            <td><span>${uMeta.rate}%</span></td>
           </tr>
         `;
       });
@@ -428,20 +417,12 @@
         <tr id="drilldown-${index}" class="drilldown-container">
           <td colspan="4">
             <table class="drilldown-table">
-              <thead>
-                <tr>
-                  <th>Target URL Path</th>
-                  <th>Impressions</th>
-                  <th>Clicks</th>
-                  <th>CTR %</th>
-                </tr>
-              </thead>
-              <tbody>${drilldownRowsHtml}</tbody>
+              <thead><tr><th>Source Target URL Routing Canvas</th>${activeWorkspace === 'ctr' ? '<th>Impressions</th><th>Clicks</th>' : '<th colspan="2">Applications</th>'}<th>Metric Share</th></tr></thead>
+              <tbody>${subRowsHtml}</tbody>
             </table>
           </td>
         </tr>
       `;
-
       tbody.innerHTML += mainRow + drilldownRow;
     });
   }
@@ -452,40 +433,14 @@
   }
 
   function copyTableAsTSV() {
-    const table = document.getElementById('analyticsTable');
-    if (!table) return;
-    
-    let tsvContent = "";
-    const rows = table.querySelectorAll('tr');
-    
-    rows.forEach(row => {
-      // Skip hidden expandable drilldown container rows to keep the export clean
-      if (row.classList.contains('drilldown-container') || row.style.display === 'none') return;
-      
-      const cells = row.querySelectorAll('th, td');
-      const rowData = [];
-      
-      cells.forEach(cell => {
-        // Clean up text characters, tabs, or newlines inside the text context cells
-        let cellText = cell.innerText.replace(/\r?\n|\r/g, " ").trim();
-        rowData.push(cellText);
-      });
-      
-      if (rowData.length > 0) {
-        tsvContent += rowData.join("\t") + "\n";
-      }
+    const table = document.getElementById('analyticsTable'); if (!table) return;
+    let tsv = ""; const rows = table.querySelectorAll('tr');
+    rows.forEach(r => {
+      if (r.classList.contains('drilldown-container') || r.style.display === 'none') return;
+      const dataRow = []; r.querySelectorAll('th, td').forEach(c => dataRow.push(c.innerText.replace(/\r?\n|\r/g, " ").trim()));
+      if (dataRow.length > 0) tsv += dataRow.join("\t") + "\n";
     });
-
-    if (!tsvContent.trim() || tsvContent.includes("No tracking data available")) {
-      alert("No active metrics matching query matrix fields to copy.");
-      return;
-    }
-
-    navigator.clipboard.writeText(tsvContent).then(() => {
-      alert("Table metrics copied to clipboard as TSV format! Ready for Excel/Sheets paste.");
-    }).catch(err => {
-      console.error("Clipboard operational interface execution failure: ", err);
-    });
+    navigator.clipboard.writeText(tsv).then(() => alert("Workspace table copied to clipboard as TSV!")).catch(e => console.error(e));
   }
 </script>
 </body>
