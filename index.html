@@ -344,6 +344,7 @@
       const rowOther = row.other_params || '';
 
       if (filterTrackingVal && !val.toLowerCase().includes(filterTrackingVal)) return;
+      if (filterUrlClean && !rowUrlClean.toLowerCase().includes(filterUrlClean)) return;
       if (filterCid && !rowCid.toLowerCase().includes(filterCid)) return;
       if (filterOtherParams && !rowOther.toLowerCase().includes(filterOtherParams)) return;
 
