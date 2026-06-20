@@ -106,7 +106,11 @@
       <input type="text" id="searchTrackingVal" oninput="renderMetricsTable()" placeholder="🔍 e.g., hero_banner_click">
     </div>
     <div class="input-field">
-      <label>Search CID Parameter</label>
+      <label>Search URL</label>
+      <input type="text" id="searchUrlClean" oninput="renderMetricsTable()" placeholder="🔍 e.g., /checkout or pricing">
+    </div>
+    <div class="input-field">
+      <label>Search CID</label>
       <input type="text" id="searchCid" oninput="renderMetricsTable()" placeholder="🔍 e.g., hk_promo_2026">
     </div>
     <div class="input-field">
@@ -313,6 +317,7 @@
     const shouldStripParams = document.getElementById('stripParams').checked;
 
     const filterTrackingVal = document.getElementById('searchTrackingVal').value.trim().toLowerCase();
+    const filterUrlClean = document.getElementById('searchUrlClean').value.trim().toLowerCase();
     const filterCid = document.getElementById('searchCid').value.trim().toLowerCase();
     const filterOtherParams = document.getElementById('searchOtherParams').value.trim().toLowerCase();
 
