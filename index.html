@@ -3,7 +3,6 @@
 <head>
   <meta charset="UTF-8">
   <title>SEHK Insider Promotion Component Analytics</title>
-
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     body { font-family: -apple-system, sans-serif; margin: 30px; background: #f6f8fa; color: #24292e; }
@@ -84,7 +83,7 @@
       <div class="input-field">
         <label>Primary Sort Matrix</label>
         <select id="sortEngine" onchange="renderMetricsTable()">
-          <!-- Populated Dynamically via JS -->
+          <!-- Dynamically configured via JS -->
         </select>
       </div>
       <div class="input-field">
@@ -128,10 +127,10 @@
 
   <table id="analyticsTable">
     <thead id="tableHeaderBlock">
-      <!-- Generated dynamically based on mode context -->
+      <!-- Injected contextually -->
     </thead>
     <tbody id="mainTableBody">
-      <tr><td colspan="4" style="text-align:center;">Awaiting workspace buffer setup initialization parameters...</td></tr>
+      <tr><td colspan="5" style="text-align:center;">Awaiting workspace buffer setup initialization parameters...</td></tr>
     </tbody>
   </table>
 </div>
@@ -155,11 +154,10 @@
   let activeWorkspace = 'ctr'; 
   let currentDataSource = 'sheets'; 
   
-  // Storage caches
   let cachedClicks = [];
   let cachedImpressions = [];
   let cachedVouchers = [];
-  let voucherToTrackingMap = {}; // Maps: Voucher Code -> Array of Data Tracking Values
+  let voucherToTrackingMap = {}; 
 
   function getHKTDateString(date) {
     const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit' });
@@ -249,7 +247,6 @@
   async function fetchRecordsPipeline() {
     document.getElementById('mainTableBody').innerHTML = '<tr><td colspan="5" style="text-align:center;">Synchronizing active data fields...</td></tr>';
     
-    // Always pre-load the Mapping sheet feed to handle cross-referencing denominators
     try {
       const mappingText = await fetch(MAPPING_CSV_URL).then(r => r.text());
       const mappingRows = parseCSVText(mappingText);
@@ -263,7 +260,7 @@
         if (!voucherToTrackingMap[vCode].includes(trackVal)) voucherToTrackingMap[vCode].push(trackVal);
       }
     } catch (e) {
-      console.error("Mapping data sync error: ", e);
+      console.error("Mapping dataset synchronization missing or blocked:", e);
     }
 
     if (currentDataSource === 'sheets') {
@@ -301,12 +298,12 @@
 
       renderMetricsTable();
     } catch (e) {
-      alert("Error parsing runtime arrays from Google Sheets: " + e.message);
+      alert("Error parsing execution matrix outputs from Google Sheets: " + e.message);
     }
   }
 
   async function fetchFromSupabaseLive() {
-    if(!supabaseClient) { alert("Please configure active Supabase credentials."); return; }
+    if(!supabaseClient) { alert("Please input valid Supabase access configurations first."); return; }
     const startInput = document.getElementById('startDate').value;
     const endInput = document.getElementById('endDate').value;
     const startISO = new Date(`${startInput}T00:00:00+08:00`).toISOString();
@@ -318,7 +315,7 @@
     ]);
 
     if (ctrRes.error || vouchRes.error) { 
-      alert('Supabase Fetch Error: ' + (ctrRes.error?.message || vouchRes.error?.message)); 
+      alert('Query exception structural response error routing runtime: ' + (ctrRes.error?.message || vouchRes.error?.message)); 
       return; 
     }
 
@@ -409,10 +406,9 @@
       });
 
     } else {
-      // --- VOUCHER WORKSPACE VIEW MATRIX CONTEXT WITH HISTORICAL DENOMINATOR AGGREGATIONS ---
-      thead.innerHTML = `<tr><th>Voucher Code Applied</th><th>Total Redemptions</th><th>Mapped Ref Clicks</th><th>Mapped Ref Imps</th><th>CVR% (Clicks / Imps)</th></tr>`;
+      // --- VOUCHER WORKSPACE VIEW PANEL RE-ORDERING CONFIGURATION ---
+      thead.innerHTML = `<tr><th>Voucher Code Applied</th><th>Cart Impressions</th><th>Apply Code Clicks</th><th id="totalVolumeHeader">Redemptions</th><th>CVR% (Imp / Click)</th></tr>`;
       
-      // Calculate active base denominator metrics for current filtering timeframe windows
       const trackingValueClicks = {};
       const trackingValueImps = {};
 
@@ -448,8 +444,9 @@
         totalVouchersSum++;
       });
 
+      document.getElementById('totalVolumeHeader').innerText = `Redemptions (Sum: ${totalVouchersSum})`;
+
       let entries = Object.entries(aggregation).map(([vCode, meta]) => {
-        // Resolve mapped denominator metrics arrays
         let mappedTracks = voucherToTrackingMap[vCode] || [];
         let totalRefClicks = 0;
         let totalRefImps = 0;
@@ -474,13 +471,14 @@
           return [url, uMeta];
         }).sort((a, b) => b[1].total - a[1].total);
 
+        // Reordered Row Output layout mapping vector definitions
         const mainRow = `
           <tr class="clickable-row" onclick="toggleDrilldown(${index})">
             <td><strong>🎟️ ${vCode}</strong></td>
-            <td class="metric-text">${meta.total}</td>
-            <td class="metric-text">${meta.refClicks}</td>
             <td class="metric-text">${meta.refImps}</td>
-            <td class="cvr-text">🎯 ${meta.cvrClicks}% <span style="color:#586069; font-weight:normal; font-size:11px;">(Clk)</span> / ${meta.cvrImps}% <span style="color:#586069; font-weight:normal; font-size:11px;">(Imp)</span></td>
+            <td class="metric-text">${meta.refClicks}</td>
+            <td class="metric-text">${meta.total}</td>
+            <td class="cvr-text">${meta.cvrImps}% <span style="color:#586069; font-weight:normal; font-size:11px;">(Imp)</span> / ${meta.cvrClicks}% <span style="color:#586069; font-weight:normal; font-size:11px;">(Clk)</span></td>
           </tr>
         `;
 
