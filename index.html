@@ -270,11 +270,26 @@
       const orderRows = parseCSVText(ordersText);
       cachedOrders = [];
       const colLen = orderRows[0] ? orderRows[0].length : 0;
+
       for (let i = 1; i < orderRows.length; i++) {
-        const r = orderRows[i]; if (r.length < colLen || colLen < 2) continue;
-        const vCode = r[colLen - 2].trim();
-        const tStamp = r[colLen - 1].trim();
-        cachedOrders.push({ timestamp: tStamp, voucher_code: vCode });
+        const r = orderRows[i]; 
+        if (r.length < colLen || colLen < 2) continue;
+        
+        const rawVoucherField = r[colLen - 2].trim(); // Column H (8th column)
+        const tStamp = r[colLen - 1].trim();          // Column I (9th column)
+
+        // Split on commas if a single order contains multiple stacked codes
+        if (rawVoucherField.includes(',')) {
+          const codes = rawVoucherField.split(',');
+          codes.forEach(code => {
+            const cleanCode = code.trim();
+            if (cleanCode) {
+              cachedOrders.push({ timestamp: tStamp, voucher_code: cleanCode });
+            }
+          });
+        } else if (rawVoucherField) {
+          cachedOrders.push({ timestamp: tStamp, voucher_code: rawVoucherField });
+        }
       }
     } catch (e) {
       console.error("Mapping/Orders feed missing or structure unaligned:", e);
