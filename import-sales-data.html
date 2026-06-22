@@ -5,91 +5,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sales CSV Data Extractor</title>
     <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 40px auto;
-            max-width: 650px;
-            padding: 20px;
-            background-color: #f4f6f9;
-            color: #333;
-        }
-        .container {
-            background-color: #fff;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        }
-        h2 {
-            margin-top: 0;
-            color: #2c3e50;
-            border-bottom: 2px solid #ecf0f1;
-            padding-bottom: 10px;
-        }
-        .form-group {
-            margin-top: 20px;
-            margin-bottom: 20px;
-        }
-        label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: bold;
-        }
-        input[type="file"] {
-            display: block;
-            width: 100%;
-            padding: 10px;
-            background: #f8f9fa;
-            border: 1px dashed #ced4da;
-            border-radius: 4px;
-            box-sizing: border-box;
-        }
-        button {
-            background-color: #3498db;
-            color: white;
-            padding: 12px 20px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 16px;
-            width: 100%;
-            transition: background 0.2s;
-        }
-        button:hover {
-            background-color: #2980b9;
-        }
-        button:disabled {
-            background-color: #bdc3c7;
-            cursor: not-allowed;
-        }
-        #status {
-            margin-top: 20px;
-            padding: 15px;
-            border-radius: 4px;
-            display: none;
-            font-weight: 500;
-        }
-        .success {
-            background-color: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        .error {
-            background-color: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-        .info {
-            background-color: #e2e3e5;
-            color: #383d41;
-            border: 1px solid #d6d8db;
-        }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 40px auto; max-width: 650px; padding: 20px; background-color: #f4f6f9; color: #333; }
+        .container { background-color: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        h2 { margin-top: 0; color: #2c3e50; border-bottom: 2px solid #ecf0f1; padding-bottom: 10px; }
+        .form-group { margin-top: 20px; margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-weight: bold; }
+        input[type="file"] { display: block; width: 100%; padding: 10px; background: #f8f9fa; border: 1px dashed #ced4da; border-radius: 4px; box-sizing: border-box; }
+        button { background-color: #3498db; color: white; padding: 12px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; width: 100%; transition: background 0.2s; }
+        button:hover { background-color: #2980b9; }
+        button:disabled { background-color: #bdc3c7; cursor: not-allowed; }
+        #status { margin-top: 20px; padding: 15px; border-radius: 4px; display: none; font-weight: 500; }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background-color: #e2e3e5; color: #383d41; border: 1px solid #d6d8db; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <h2>Sales CSV Data Extractor</h2>
-    <p>Upload your <code>sales-data.csv</code> file below to filter out unique order codes, perform UTC conversion, and append records directly to your Google Sheet.</p>
+    <p>Upload your <code>sales-data.csv</code> file below to extract and convert records instantly.</p>
     
     <div class="form-group">
         <label for="csvFile">Select CSV File</label>
@@ -102,7 +37,6 @@
 </div>
 
 <script>
-    // REPLACE THIS WITH YOUR COPIED WEB APP URL FROM GOOGLE APPS SCRIPT
     const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby7Z-jDjyGzEtEoxQpS0TOZIV7QGTI48x_cXJlJ4CP2L_BnRCBGpCdacfFarCrUW-dO/exec";
 
     function showStatus(message, type) {
@@ -110,6 +44,33 @@
         statusDiv.className = type;
         statusDiv.innerHTML = message;
         statusDiv.style.display = 'block';
+    }
+
+    function parseCSV(text) {
+        let p = '', r = [];
+        let q = false;
+        r.push([]);
+        for (let i = 0; i < text.length; i++) {
+            let c = text[i];
+            let next = text[i+1];
+            if (c == '"') { 
+                if (q && next == '"') { r[r.length-1][r[r.length-1].length-1] += '"'; i++; } 
+                else { q = !q; }
+            } else if (c == ',' && !q) { 
+                r[r.length-1].push(''); 
+            } else if (c == '\r' || c == '\n') {
+                if (c == '\r' && next == '\n') { i++; }
+                if (!q) { 
+                    if (r[r.length-1].length > 0 || text[i+1]) r.push([]); 
+                } else {
+                    r[r.length-1][r[r.length-1].length-1] += c;
+                }
+            } else {
+                if (r[r.length-1].length === 0) r[r.length-1].push('');
+                r[r.length-1][r[r.length-1].length-1] += c;
+            }
+        }
+        return r.filter(row => row.length > 0);
     }
 
     function processAndUpload() {
@@ -125,44 +86,98 @@
         const reader = new FileReader();
 
         button.disabled = true;
-        showStatus('Reading and cleaning CSV data locally...', 'info');
+        showStatus('Processing data locally...', 'info');
 
         reader.onload = function(e) {
-            let text = e.target.result;
+            const rawText = e.target.result;
+            const rows = parseCSV(rawText);
             
-            // Fix single digit hours locally before payload transit
-            text = text.replace(/(^|[\r\n,])(\d)(:\d{2}:\d{2})/g, function(match, prefix, hour, rest) {
-                return prefix + '0' + hour + rest;
-            });
+            if (rows.length <= 1) {
+                showStatus('The CSV file is empty or missing content.', 'error');
+                button.disabled = false;
+                return;
+            }
 
-            showStatus('Sending data payload to Google Sheet...', 'info');
+            const idxA = 0, idxB = 1, idxC = 2, idxD = 3, idxE = 4, idxF = 5, idxQ = 16, idxR = 17;
+            const seenOrderCodes = {};
+            const processedRows = [];
 
-            // Packaging data as form parameters bypasses strict preflight rules seamlessly
+            for (let i = 1; i < rows.length; i++) {
+                let row = rows[i];
+                if (!row || row.length <= idxF) continue;
+
+                let orderCode = row[idxF].toString().trim();
+                if (!orderCode) continue;
+
+                // Rule 1 & 2: Extract 1st row of unique value in column F, and keep specific columns
+                if (!seenOrderCodes[orderCode]) {
+                    seenOrderCodes[orderCode] = true;
+
+                    let colA = row[idxA] || "";
+                    let colB = row[idxB] || "";
+                    let colC = row[idxC] || "";
+                    let colD = row[idxD] || "";
+                    let colE = row[idxE] || "";
+                    let colQ = row[idxQ] || "";
+                    let colR = row[idxR] || "";
+
+                    // Rule 3: Robust Date Conversion to matching format
+                    let utcTimeString = "";
+                    if (colA && colB) {
+                        try {
+                            let datePart = colB.trim();
+                            let timePart = colA.trim();
+
+                            let timeSegments = timePart.split(':');
+                            if (timeSegments[0].length === 1) {
+                                timeSegments[0] = '0' + timeSegments[0];
+                            }
+                            let cleanTime = timeSegments.join(':');
+
+                            let hktString = datePart + 'T' + cleanTime + '+08:00';
+                            let dateObj = new Date(hktString);
+
+                            if (!isNaN(dateObj.getTime())) {
+                                utcTimeString = dateObj.toISOString().replace('Z', '+00:00');
+                            } else {
+                                utcTimeString = "Invalid Date Parsing";
+                            }
+                        } catch (err) {
+                            utcTimeString = "Conversion Error";
+                        }
+                    }
+
+                    processedRows.push([colA, colB, colC, colD, colE, orderCode, colQ, colR, utcTimeString]);
+                }
+            }
+
+            if (processedRows.length === 0) {
+                showStatus('No rows to export.', 'error');
+                button.disabled = false;
+                return;
+            }
+
+            showStatus('Uploading compiled unique entries...', 'info');
+
+            // Convert to clean JSON string and post as an explicit string parameter
             const formData = new URLSearchParams();
-            formData.append('csvData', text);
+            formData.append('jsonPayload', JSON.stringify(processedRows));
 
             fetch(APPS_SCRIPT_URL, {
                 method: 'POST',
-                mode: 'no-cors', 
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded'
-                },
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: formData.toString()
             })
             .then(() => {
-                showStatus('Data transmission completed successfully. Refresh your Google Sheet to inspect data rows.', 'success');
+                showStatus(`Successfully dispatched ${processedRows.length} unique rows! Check your 'Orders' tab.`, 'success');
                 button.disabled = false;
-                fileInput.value = ''; 
+                fileInput.value = '';
             })
             .catch(error => {
                 showStatus('Network connection error: ' + error.message, 'error');
                 button.disabled = false;
             });
-        };
-
-        reader.onerror = function() {
-            showStatus('Failed to read the file locally.', 'error');
-            button.disabled = false;
         };
 
         reader.readAsText(file);
@@ -171,3 +186,4 @@
 
 </body>
 </html>
+
