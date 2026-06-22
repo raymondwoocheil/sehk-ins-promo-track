@@ -6,7 +6,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     body { font-family: -apple-system, sans-serif; margin: 30px; background: #f6f8fa; color: #24292e; }
-    .container { max-width: 1200px; margin: 0 auto; background: white; padding: 25px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
+    .container { max-width: 1250px; margin: 0 auto; background: white; padding: 25px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
     h2 { border-bottom: 1px solid #e1e4e8; padding-bottom: 10px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; }
     
     .nav-tabs { display: flex; gap: 10px; border-bottom: 2px solid #e1e4e8; margin-bottom: 20px; }
@@ -47,7 +47,7 @@
     .badge-source { font-size: 12px; padding: 4px 10px; border-radius: 12px; font-weight: bold; }
     .badge-sheet { background: #e2f5ea; color: #2ea44f; border: 1px solid #a2e1be; }
     .badge-supabase { background: #e8f0fe; color: #1a73e8; border: 1px solid #b4d2fe; }
-    .cvr-text { color: #0366d6; font-weight: 500; font-size: 13px; }
+    .cvr-text { color: #0366d6; font-weight: bold; font-size: 13px; }
   </style>
 </head>
 <body>
@@ -83,7 +83,7 @@
       <div class="input-field">
         <label>Primary Sort Matrix</label>
         <select id="sortEngine" onchange="renderMetricsTable()">
-          <!-- Dynamically configured via JS -->
+          <!-- Populated via JS -->
         </select>
       </div>
       <div class="input-field">
@@ -109,7 +109,7 @@
   <div class="search-matrix">
     <div class="input-field">
       <label id="searchLabelMain">Search Data Tracking Value</label>
-      <input type="text" id="searchTrackingVal" oninput="renderMetricsTable()" placeholder="🔍 Search component text...">
+      <input type="text" id="searchTrackingVal" oninput="renderMetricsTable()" placeholder="🔍 Search components...">
     </div>
     <div class="input-field">
       <label>Search Clean URL</label>
@@ -121,16 +121,16 @@
     </div>
     <div class="input-field">
       <label>Search Other Parameters</label>
-      <input type="text" id="searchOtherParams" oninput="renderMetricsTable()" placeholder="🔍 Query context parameters...">
+      <input type="text" id="searchOtherParams" oninput="renderMetricsTable()" placeholder="🔍 Query strings...">
     </div>
   </div>
 
   <table id="analyticsTable">
     <thead id="tableHeaderBlock">
-      <!-- Injected contextually -->
+      <!-- Generated contextually -->
     </thead>
     <tbody id="mainTableBody">
-      <tr><td colspan="5" style="text-align:center;">Awaiting workspace buffer setup initialization parameters...</td></tr>
+      <tr><td colspan="6" style="text-align:center;">Awaiting workspace buffer setup initialization parameters...</td></tr>
     </tbody>
   </table>
 </div>
@@ -141,7 +141,8 @@
   const IMPRESSIONS_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQo7-Pj0YYvK9m_ptkYkTtWwMKnq3nEFUwUyFgi67cMgOIls2v2ilopWjVOKE44QG4751VyauxO0WlL/pub?gid=1549224613&single=true&output=csv';
   const VOUCHERS_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQo7-Pj0YYvK9m_ptkYkTtWwMKnq3nEFUwUyFgi67cMgOIls2v2ilopWjVOKE44QG4751VyauxO0WlL/pub?gid=1996162120&single=true&output=csv';
   const MAPPING_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQo7-Pj0YYvK9m_ptkYkTtWwMKnq3nEFUwUyFgi67cMgOIls2v2ilopWjVOKE44QG4751VyauxO0WlL/pub?gid=1638480397&single=true&output=csv';
-  
+  const ORDERS_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQo7-Pj0YYvK9m_ptkYkTtWwMKnq3nEFUwUyFgi67cMgOIls2v2ilopWjVOKE44QG4751VyauxO0WlL/pub?gid=185484605&single=true&output=csv';
+
   // --- SUPABASE ACCESS CONFIGURATIONS ---
   const SUPABASE_URL = 'https://umjcfwragogvkuqoivoi.supabase.co';
   const SUPABASE_ANON_KEY = 'sb_publishable_6-AZIOaEAOW3jeOoYf_CEQ_d40svSiz';
@@ -157,6 +158,7 @@
   let cachedClicks = [];
   let cachedImpressions = [];
   let cachedVouchers = [];
+  let cachedOrders = []; // Array tracking raw backend conversion data structures
   let voucherToTrackingMap = {}; 
 
   function getHKTDateString(date) {
@@ -195,8 +197,9 @@
       `;
     } else {
       sortDropdown.innerHTML = `
-        <option value="vouchers_desc" selected>Most Applied → Least Applied</option>
-        <option value="cvr_clicks_desc">Highest CVR% (Clicks) → Lowest</option>
+        <option value="orders_desc" selected>Most Realized Orders → Least</option>
+        <option value="vouchers_desc">Most Checking Out → Least</option>
+        <option value="cvr_clicks_desc">Highest Realized CVR% (Clicks) → Lowest</option>
         <option value="alpha_asc">Voucher Code String (A-Z)</option>
       `;
     }
@@ -245,22 +248,36 @@
   }
 
   async function fetchRecordsPipeline() {
-    document.getElementById('mainTableBody').innerHTML = '<tr><td colspan="5" style="text-align:center;">Synchronizing active data fields...</td></tr>';
+    document.getElementById('mainTableBody').innerHTML = '<tr><td colspan="6" style="text-align:center;">Synchronizing active dataset elements...</td></tr>';
     
     try {
-      const mappingText = await fetch(MAPPING_CSV_URL).then(r => r.text());
+      const [mappingText, ordersText] = await Promise.all([
+        fetch(MAPPING_CSV_URL).then(r => r.text()),
+        fetch(ORDERS_CSV_URL).then(r => r.text())
+      ]);
+      
+      // Parse mapping structures
       const mappingRows = parseCSVText(mappingText);
       voucherToTrackingMap = {};
       for (let i = 1; i < mappingRows.length; i++) {
-        const r = mappingRows[i];
-        if (r.length < 3) continue;
-        const vCode = r[0].trim();
-        const trackVal = r[2].trim();
+        const r = mappingRows[i]; if (r.length < 3) continue;
+        const vCode = r[0].trim(); const trackVal = r[2].trim();
         if (!voucherToTrackingMap[vCode]) voucherToTrackingMap[vCode] = [];
         if (!voucherToTrackingMap[vCode].includes(trackVal)) voucherToTrackingMap[vCode].push(trackVal);
       }
+
+      // Parse backend transaction realizations matrix data fields
+      const orderRows = parseCSVText(ordersText);
+      cachedOrders = [];
+      const colLen = orderRows[0] ? orderRows[0].length : 0;
+      for (let i = 1; i < orderRows.length; i++) {
+        const r = orderRows[i]; if (r.length < colLen || colLen < 2) continue;
+        const vCode = r[colLen - 2].trim();
+        const tStamp = r[colLen - 1].trim();
+        cachedOrders.push({ timestamp: tStamp, voucher_code: vCode });
+      }
     } catch (e) {
-      console.error("Mapping dataset synchronization missing or blocked:", e);
+      console.error("Mapping/Orders feed missing or structure unaligned:", e);
     }
 
     if (currentDataSource === 'sheets') {
@@ -298,7 +315,7 @@
 
       renderMetricsTable();
     } catch (e) {
-      alert("Error parsing execution matrix outputs from Google Sheets: " + e.message);
+      alert("Error parsing runtime arrays from Google Sheets: " + e.message);
     }
   }
 
@@ -309,19 +326,21 @@
     const startISO = new Date(`${startInput}T00:00:00+08:00`).toISOString();
     const endISO = new Date(`${endInput}T23:59:59+08:00`).toISOString();
 
-    const [ctrRes, vouchRes] = await Promise.all([
+    const [ctrRes, vouchRes, ordersRes] = await Promise.all([
       supabaseClient.from('ctr_analytics').select('timestamp, tracking_value, url_clean, cid, other_params, event_type').gte('timestamp', startISO).lte('timestamp', endISO),
-      supabaseClient.from('vouchers').select('timestamp, voucher_code, url_clean, cid, other_params').gte('timestamp', startISO).lte('timestamp', endISO)
+      supabaseClient.from('vouchers').select('timestamp, voucher_code, url_clean, cid, other_params').gte('timestamp', startISO).lte('timestamp', endISO),
+      supabaseClient.from('realized_orders').select('timestamp, voucher_code').gte('timestamp', startISO).lte('timestamp', endISO) // Dynamic backend fallbacks
     ]);
 
     if (ctrRes.error || vouchRes.error) { 
-      alert('Query exception structural response error routing runtime: ' + (ctrRes.error?.message || vouchRes.error?.message)); 
+      alert('Query execution mapping exception error: ' + (ctrRes.error?.message || vouchRes.error?.message)); 
       return; 
     }
 
     cachedClicks = ctrRes.data.filter(r => r.event_type === 'click');
     cachedImpressions = ctrRes.data.filter(r => r.event_type === 'impression');
     cachedVouchers = vouchRes.data;
+    if(!ordersRes.error) cachedOrders = ordersRes.data;
 
     renderMetricsTable();
   }
@@ -406,8 +425,8 @@
       });
 
     } else {
-      // --- VOUCHER WORKSPACE VIEW PANEL RE-ORDERING CONFIGURATION ---
-      thead.innerHTML = `<tr><th>Voucher Code Applied</th><th>Cart Impressions</th><th>Apply Code Clicks</th><th id="totalVolumeHeader">Redemptions</th><th>CVR% (Imp / Click)</th></tr>`;
+      // --- VOUCHER MATRIX WORKSPACE PANEL VIEW ---
+      thead.innerHTML = `<tr><th>Voucher Code Applied</th><th>Cart Imps</th><th>Cart Clicks</th><th id="checkoutVolumeHeader">Checkout</th><th id="orderVolumeHeader">Redemption</th><th>Realized CVR% (Imp / Click)</th></tr>`;
       
       const trackingValueClicks = {};
       const trackingValueImps = {};
@@ -420,8 +439,9 @@
       cachedClicks.forEach(r => countDenominators(r, trackingValueClicks, currentDataSource === 'sheets'));
       cachedImpressions.forEach(r => countDenominators(r, trackingValueImps, currentDataSource === 'sheets'));
 
+      // Aggregate checkout session funnels 
       const aggregation = {};
-      let totalVouchersSum = 0;
+      let totalCheckoutsSum = 0;
 
       cachedVouchers.forEach(row => {
         if (currentDataSource === 'sheets') {
@@ -436,15 +456,33 @@
         const baseTrackedUrl = row.url_clean || 'unknown';
         const url = shouldStripParams ? baseTrackedUrl : (baseTrackedUrl + (row.cid ? '?cid=' + row.cid : '') + (row.other_params ? '&' + row.other_params : ''));
 
-        if (!aggregation[vCode]) aggregation[vCode] = { total: 0, urls: {} };
-        if (!aggregation[vCode].urls[url]) aggregation[vCode].urls[url] = { total: 0 };
+        if (!aggregation[vCode]) aggregation[vCode] = { checkouts: 0, orders: 0, urls: {} };
+        if (!aggregation[vCode].urls[url]) aggregation[vCode].urls[url] = { checkouts: 0, orders: 0 };
 
-        aggregation[vCode].total++;
-        aggregation[vCode].urls[url].total++;
-        totalVouchersSum++;
+        aggregation[vCode].checkouts++;
+        aggregation[vCode].urls[url].checkouts++;
+        totalCheckoutsSum++;
       });
 
-      document.getElementById('totalVolumeHeader').innerText = `Redemptions (Sum: ${totalVouchersSum})`;
+      // Aggregate backend actual realized orders volumes
+      let totalRealizedOrdersSum = 0;
+      cachedOrders.forEach(row => {
+        const d = new Date(row.timestamp); 
+        if (d < startBounds || d > endBounds) return; // Universal HKT validation windows
+        
+        const vCode = row.voucher_code || '';
+        if (filterMain && !vCode.toLowerCase().includes(filterMain)) return;
+        
+        // Realized orders do not contain client client-side attributes. 
+        // We accumulate matching codes into the workspace tracking matrix structure
+        if (aggregation[vCode]) {
+          aggregation[vCode].orders++;
+          totalRealizedOrdersSum++;
+        }
+      });
+
+      document.getElementById('checkoutVolumeHeader').innerText = `Checking out (Sum: ${totalCheckoutsSum})`;
+      document.getElementById('orderVolumeHeader').innerText = `Redemption (Sum: ${totalRealizedOrdersSum})`;
 
       let entries = Object.entries(aggregation).map(([vCode, meta]) => {
         let mappedTracks = voucherToTrackingMap[vCode] || [];
@@ -456,38 +494,40 @@
           totalRefImps += (trackingValueImps[tVal] || 0);
         });
 
-        const cvrClicks = totalRefClicks > 0 ? ((meta.total / totalRefClicks) * 100).toFixed(2) : '0.00';
-        const cvrImps = totalRefImps > 0 ? ((meta.total / totalRefImps) * 100).toFixed(2) : '0.00';
+        // CVR calculations are modified to use backend realized order values as the conversion factor
+        const cvrClicks = totalRefClicks > 0 ? ((meta.orders / totalRefClicks) * 100).toFixed(2) : '0.00';
+        const cvrImps = totalRefImps > 0 ? ((meta.orders / totalRefImps) * 100).toFixed(2) : '0.00';
 
         return [vCode, { ...meta, refClicks: totalRefClicks, refImps: totalRefImps, cvrClicks: parseFloat(cvrClicks), cvrImps: parseFloat(cvrImps) }];
       });
 
-      if (sortStrategy === 'vouchers_desc') entries.sort((a, b) => b[1].total - a[1].total);
+      if (sortStrategy === 'orders_desc') entries.sort((a, b) => b[1].orders - a[1].orders);
+      else if (sortStrategy === 'vouchers_desc') entries.sort((a, b) => b[1].checkouts - a[1].checkouts);
       else if (sortStrategy === 'cvr_clicks_desc') entries.sort((a, b) => b[1].cvrClicks - a[1].cvrClicks);
       else if (sortStrategy === 'alpha_asc') entries.sort((a, b) => a[0].localeCompare(b[0]));
 
       entries.forEach(([vCode, meta], index) => {
         let urlEntries = Object.entries(meta.urls).map(([url, uMeta]) => {
           return [url, uMeta];
-        }).sort((a, b) => b[1].total - a[1].total);
+        }).sort((a, b) => b[1].checkouts - a[1].checkouts);
 
-        // Reordered Row Output layout mapping vector definitions
         const mainRow = `
           <tr class="clickable-row" onclick="toggleDrilldown(${index})">
             <td><strong>🎟️ ${vCode}</strong></td>
             <td class="metric-text">${meta.refImps}</td>
             <td class="metric-text">${meta.refClicks}</td>
-            <td class="metric-text">${meta.total}</td>
-            <td class="cvr-text">${meta.cvrImps}% <span style="color:#586069; font-weight:normal; font-size:11px;">(Imp)</span> / ${meta.cvrClicks}% <span style="color:#586069; font-weight:normal; font-size:11px;">(Clk)</span></td>
+            <td class="metric-text">${meta.checkouts}</td>
+            <td class="metric-text" style="font-weight:bold; color:#2ea44f;">${meta.orders}</td>
+            <td class="cvr-text">🎯 ${meta.cvrImps}% <span style="color:#586069; font-weight:normal; font-size:11px;">(Imp)</span> / ${meta.cvrClicks}% <span style="color:#586069; font-weight:normal; font-size:11px;">(Clk)</span></td>
           </tr>
         `;
 
         let subRowsHtml = '';
         urlEntries.forEach(([url, uMeta]) => {
-          subRowsHtml += `<tr><td><a href="${url}" target="_blank" style="color: #0366d6; word-break: break-all;">${url}</a></td><td colspan="4">${uMeta.total} records tracked</td></tr>`;
+          subRowsHtml += `<tr><td><a href="${url}" target="_blank" style="color: #0366d6; word-break: break-all;">${url}</a></td><td colspan="5">${uMeta.checkouts} checkouts initialized</td></tr>`;
         });
 
-        tbody.innerHTML += mainRow + `<tr id="drilldown-${index}" class="drilldown-container"><td colspan="5"><table class="drilldown-table"><thead><tr><th>Source Target URL Canvas</th><th colspan="4">Conversions Logged</th></tr></thead><tbody>${subRowsHtml}</tbody></table></td></tr>`;
+        tbody.innerHTML += mainRow + `<tr id="drilldown-${index}" class="drilldown-container"><td colspan="6"><table class="drilldown-table"><thead><tr><th>Source Checkout Step Funnel Canvas</th><th colspan="5">Funnel Progression Volume Metrics</th></tr></thead><tbody>${subRowsHtml}</tbody></table></td></tr>`;
       });
     }
   }
@@ -505,7 +545,7 @@
       const dataRow = []; r.querySelectorAll('th, td').forEach(c => dataRow.push(c.innerText.replace(/\r?\n|\r/g, " ").trim()));
       if (dataRow.length > 0) tsv += dataRow.join("\t") + "\n";
     });
-    navigator.clipboard.writeText(tsv).then(() => alert("Workspace table copied to clipboard as TSV!")).catch(e => console.error(e));
+    navigator.clipboard.writeText(tsv).then(() => alert("Workspace table data copied to clipboard as TSV matrix form!")).catch(e => console.error(e));
   }
 </script>
 </body>
