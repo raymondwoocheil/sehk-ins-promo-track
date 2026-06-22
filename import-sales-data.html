@@ -1,43 +1,82 @@
+<!--
+    const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby7Z-jDjyGzEtEoxQpS0TOZIV7QGTI48x_cXJlJ4CP2L_BnRCBGpCdacfFarCrUW-dO/exec";
+-->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sales CSV Data Extractor</title>
+    <title>Sales Data Extractor (CSV/TSV)</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 40px auto; max-width: 650px; padding: 20px; background-color: #f4f6f9; color: #333; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 40px auto; max-width: 850px; padding: 20px; background-color: #f4f6f9; color: #333; }
         .container { background-color: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
         h2 { margin-top: 0; color: #2c3e50; border-bottom: 2px solid #ecf0f1; padding-bottom: 10px; }
         .form-group { margin-top: 20px; margin-bottom: 20px; }
         label { display: block; margin-bottom: 8px; font-weight: bold; }
-        input[type="file"] { display: block; width: 100%; padding: 10px; background: #f8f9fa; border: 1px dashed #ced4da; border-radius: 4px; box-sizing: border-box; }
-        button { background-color: #3498db; color: white; padding: 12px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; width: 100%; transition: background 0.2s; }
-        button:hover { background-color: #2980b9; }
-        button:disabled { background-color: #bdc3c7; cursor: not-allowed; }
+        textarea { width: 100%; height: 180px; padding: 12px; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; font-family: monospace; font-size: 13px; resize: vertical; background-color: #fafafa; }
+        .btn-group { display: flex; gap: 10px; margin-top: 15px; }
+        button { flex: 1; color: white; padding: 12px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; transition: background 0.2s; }
+        #simBtn { background-color: #e67e22; }
+        #simBtn:hover { background-color: #d35400; }
+        #uploadBtn { background-color: #3498db; }
+        #uploadBtn:hover { background-color: #2980b9; }
+        button:disabled { background-color: #bdc3c7 !important; cursor: not-allowed; }
         #status { margin-top: 20px; padding: 15px; border-radius: 4px; display: none; font-weight: 500; }
         .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
         .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
         .info { background-color: #e2e3e5; color: #383d41; border: 1px solid #d6d8db; }
+        
+        .preview-container { margin-top: 30px; display: none; }
+        .preview-title { font-weight: bold; color: #2c3e50; margin-bottom: 10px; }
+        .table-wrapper { overflow-x: auto; border: 1px solid #dee2e6; border-radius: 4px; }
+        table { width: 100%; border-collapse: collapse; background: #fff; font-size: 13px; text-align: left; }
+        th { background-color: #f8f9fa; color: #495057; font-weight: 600; padding: 10px; border-bottom: 2px solid #dee2e6; }
+        td { padding: 10px; border-bottom: 1px solid #dee2e6; white-space: nowrap; }
+        tr:nth-child(even) { background-color: #fdfdfd; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>Sales CSV Data Extractor</h2>
-    <p>Upload your <code>sales-data.csv</code> file below to extract and convert records instantly.</p>
+    <h2>Sales Data Extractor (CSV/TSV Auto-Detect)</h2>
+    <p>Paste your data from Excel/CSV/TSV directly into the area below. The parser automatically handles tabs or commas.</p>
     
     <div class="form-group">
-        <label for="csvFile">Select CSV File</label>
-        <input type="file" id="csvFile" accept=".csv">
+        <label for="csvDataPaste">Paste Raw Data Here (Supports Excel copy-paste)</label>
+        <textarea id="csvDataPaste" placeholder="Creation Time	Creation Date	Site	Sales Application...&#10;0:28:01	2026-06-18	hk	Web..."></textarea>
     </div>
     
-    <button id="uploadBtn" onclick="processAndUpload()">Process & Append to Google Sheet</button>
+    <div class="btn-group">
+        <button id="simBtn" onclick="processText(true)">Simulate Extraction Only</button>
+        <button id="uploadBtn" onclick="processText(false)">Process & Append to Sheet</button>
+    </div>
     
     <div id="status"></div>
+
+    <div id="previewContainer" class="preview-container">
+        <div class="preview-title" id="previewTitle">Data Preview</div>
+        <div class="table-wrapper">
+            <table id="previewTable">
+                <thead>
+                    <tr>
+                        <th>Time (HKT)</th>
+                        <th>Date (HKT)</th>
+                        <th>Site</th>
+                        <th>Application</th>
+                        <th>O2O App</th>
+                        <th>Order Code (Unique F)</th>
+                        <th>Promo Code</th>
+                        <th>Voucher Code</th>
+                        <th>Converted UTC Server Time</th>
+                    </tr>
+                </thead>
+                <tbody id="previewBody"></tbody>
+            </table>
+        </div>
+    </div>
 </div>
 
 <script>
-    // REPLACE WITH YOUR RE-DEPLOYED WEB APP URL
     const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby7Z-jDjyGzEtEoxQpS0TOZIV7QGTI48x_cXJlJ4CP2L_BnRCBGpCdacfFarCrUW-dO/exec";
 
     function showStatus(message, type) {
@@ -47,55 +86,70 @@
         statusDiv.style.display = 'block';
     }
 
-    function parseCSV(text) {
-        let r = [];
-        let q = false;
-        r.push([]);
-        for (let i = 0; i < text.length; i++) {
-            let c = text[i];
-            let next = text[i+1];
-            if (c == '"') { 
-                if (q && next == '"') { r[r.length-1][r[r.length-1].length-1] += '"'; i++; } 
-                else { q = !q; }
-            } else if (c == ',' && !q) { 
-                r[r.length-1].push(''); 
-            } else if (c == '\r' || c == '\n') {
-                if (c == '\r' && next == '\n') { i++; }
-                if (!q) { 
-                    if (r[r.length-1].length > 0 || text[i+1]) r.push([]); 
-                } else {
-                    r[r.length-1][r[r.length-1].length-1] += c;
-                }
+    // Smart parsing supporting both tabs (\t) and commas (,)
+    function parseDelimiterSeparatedText(text) {
+        let lines = text.split(/\r?\n/);
+        let result = [];
+        
+        for (let i = 0; i < lines.length; i++) {
+            let line = lines[i].trim();
+            if (!line) continue;
+            
+            // Auto detect tab vs comma per line
+            let delimiter = line.includes('\t') ? '\t' : ',';
+            let row = [];
+            
+            if (delimiter === '\t') {
+                row = line.split('\t');
             } else {
-                if (r[r.length-1].length === 0) r[r.length-1].push('');
-                r[r.length-1][r[r.length-1].length-1] += c;
+                // Safe comma separation rule matching quotes
+                let q = false;
+                let currentCell = '';
+                for (let j = 0; j < line.length; j++) {
+                    let c = line[j];
+                    if (c === '"') {
+                        q = !q;
+                    } else if (c === ',' && !q) {
+                        row.push(currentCell.trim());
+                        currentCell = '';
+                    } else {
+                        currentCell += c;
+                    }
+                }
+                row.push(currentCell.trim());
             }
+            result.push(row);
         }
-        return r.filter(row => row.length > 0);
+        return result;
     }
 
-    function processAndUpload() {
-        const fileInput = document.getElementById('csvFile');
-        const button = document.getElementById('uploadBtn');
+    function processText(isSimulation) {
+        const rawText = document.getElementById('csvDataPaste').value.trim();
+        const uploadBtn = document.getElementById('uploadBtn');
+        const simBtn = document.getElementById('simBtn');
+        const previewContainer = document.getElementById('previewContainer');
+        const previewBody = document.getElementById('previewBody');
+        const previewTitle = document.getElementById('previewTitle');
         
-        if (fileInput.files.length === 0) {
-            showStatus('Please select a CSV file first.', 'error');
+        if (!rawText) {
+            showStatus('Please paste your data into the text area first.', 'error');
             return;
         }
 
-        const file = fileInput.files[0];
-        const reader = new FileReader();
+        uploadBtn.disabled = true;
+        simBtn.disabled = true;
+        previewContainer.style.display = 'none';
+        previewBody.innerHTML = '';
 
-        button.disabled = true;
-        showStatus('Processing data locally...', 'info');
+        showStatus('Parsing structured rows...', 'info');
 
-        reader.onload = function(e) {
-            const rawText = e.target.result;
-            const rows = parseCSV(rawText);
+        setTimeout(() => {
+            const rows = parseDelimiterSeparatedText(rawText);
             
             if (rows.length <= 1) {
-                showStatus('The CSV file is empty or missing content.', 'error');
-                button.disabled = false;
+                showStatus('The data entered is incomplete or structurally invalid.', 'error');
+                uploadBtn.disabled = false;
+                simBtn.disabled = false;
                 return;
             }
 
@@ -107,25 +161,25 @@
                 let row = rows[i];
                 if (!row || row.length <= idxF) continue;
 
-                let orderCode = row[idxF].toString().trim();
+                let orderCode = row[idxF].toString().trim().replace(/^["']|["']$/g, '');
                 if (!orderCode) continue;
 
                 if (!seenOrderCodes[orderCode]) {
                     seenOrderCodes[orderCode] = true;
 
-                    let colA = row[idxA] || "";
-                    let colB = row[idxB] || "";
-                    let colC = row[idxC] || "";
-                    let colD = row[idxD] || "";
-                    let colE = row[idxE] || "";
-                    let colQ = row[idxQ] || "";
-                    let colR = row[idxR] || "";
+                    let colA = (row[idxA] || "").trim().replace(/^["']|["']$/g, '');
+                    let colB = (row[idxB] || "").trim().replace(/^["']|["']$/g, '');
+                    let colC = (row[idxC] || "").trim().replace(/^["']|["']$/g, '');
+                    let colD = (row[idxD] || "").trim().replace(/^["']|["']$/g, '');
+                    let colE = (row[idxE] || "").trim().replace(/^["']|["']$/g, '');
+                    let colQ = (row[idxQ] || "").trim().replace(/^["']|["']$/g, '');
+                    let colR = (row[idxR] || "").trim().replace(/^["']|["']$/g, '');
 
                     let utcTimeString = "";
                     if (colA && colB) {
                         try {
-                            let datePart = colB.trim();
-                            let timePart = colA.trim();
+                            let datePart = colB;
+                            let timePart = colA;
 
                             let timeSegments = timePart.split(':');
                             if (timeSegments[0].length === 1) {
@@ -151,32 +205,52 @@
             }
 
             if (processedRows.length === 0) {
-                showStatus('No unique rows found to export.', 'error');
-                button.disabled = false;
+                showStatus('No unique valid records identified.', 'error');
+                uploadBtn.disabled = false;
+                simBtn.disabled = false;
                 return;
             }
 
-            showStatus('Uploading data segments to Google Sheets...', 'info');
-
-            // Using text/plain keeps the data submission simple and evades strict cross-origin policies
-            fetch(APPS_SCRIPT_URL, {
-                method: 'POST',
-                mode: 'no-cors',
-                headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify(processedRows)
-            })
-            .then(() => {
-                showStatus(`Success! Sent ${processedRows.length} unique rows. Verify your "Orders" tab.`, 'success');
-                button.disabled = false;
-                fileInput.value = '';
-            })
-            .catch(error => {
-                showStatus('Network connection error: ' + error.message, 'error');
-                button.disabled = false;
+            processedRows.forEach(rowData => {
+                let tr = document.createElement('tr');
+                rowData.forEach(cellText => {
+                    let td = document.createElement('td');
+                    td.textContent = cellText;
+                    tr.appendChild(td);
+                });
+                previewBody.appendChild(tr);
             });
-        };
 
-        reader.readAsText(file);
+            if (isSimulation) {
+                previewTitle.textContent = `Simulation Preview: ${processedRows.length} distinct lines constructed`;
+                previewContainer.style.display = 'block';
+                showStatus(`Simulation complete! Generated ${processedRows.length} rows for review below.`, 'success');
+                uploadBtn.disabled = false;
+                simBtn.disabled = false;
+            } else {
+                showStatus('Transmitting content payload to Google Sheets...', 'info');
+
+                fetch(APPS_SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify(processedRows)
+                })
+                .then(() => {
+                    previewTitle.textContent = `Live Appended Track: ${processedRows.length} rows processed`;
+                    previewContainer.style.display = 'block';
+                    showStatus(`Success! Synced ${processedRows.length} items into the 'Orders' spreadsheet tab.`, 'success');
+                    uploadBtn.disabled = false;
+                    simBtn.disabled = false;
+                    document.getElementById('csvDataPaste').value = '';
+                })
+                .catch(error => {
+                    showStatus('Network delivery failure: ' + error.message, 'error');
+                    uploadBtn.disabled = false;
+                    simBtn.disabled = false;
+                });
+            }
+        }, 50);
     }
 </script>
 
