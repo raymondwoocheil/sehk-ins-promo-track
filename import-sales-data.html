@@ -172,8 +172,8 @@
                     let colC = (row[idxC] || "").trim().replace(/^["']|["']$/g, '');
                     let colD = (row[idxD] || "").trim().replace(/^["']|["']$/g, '');
                     let colE = (row[idxE] || "").trim().replace(/^["']|["']$/g, '');
+                    let colR = (row[idxP] || "").trim().replace(/^["']|["']$/g, '');
                     let colQ = (row[idxQ] || "").trim().replace(/^["']|["']$/g, '');
-                    let colR = (row[idxR] || "").trim().replace(/^["']|["']$/g, '');
 
                     let utcTimeString = "";
                     if (colA && colB) {
@@ -200,7 +200,7 @@
                         }
                     }
 
-                    processedRows.push([colA, colB, colC, colD, colE, orderCode, colQ, colR, utcTimeString]);
+                    processedRows.push([colA, colB, colC, colD, colE, orderCode, colP, colQ, utcTimeString]);
                 }
             }
 
