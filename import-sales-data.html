@@ -37,6 +37,7 @@
 </div>
 
 <script>
+    // REPLACE WITH YOUR RE-DEPLOYED WEB APP URL
     const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby7Z-jDjyGzEtEoxQpS0TOZIV7QGTI48x_cXJlJ4CP2L_BnRCBGpCdacfFarCrUW-dO/exec";
 
     function showStatus(message, type) {
@@ -47,7 +48,7 @@
     }
 
     function parseCSV(text) {
-        let p = '', r = [];
+        let r = [];
         let q = false;
         r.push([]);
         for (let i = 0; i < text.length; i++) {
@@ -109,7 +110,6 @@
                 let orderCode = row[idxF].toString().trim();
                 if (!orderCode) continue;
 
-                // Rule 1 & 2: Extract 1st row of unique value in column F, and keep specific columns
                 if (!seenOrderCodes[orderCode]) {
                     seenOrderCodes[orderCode] = true;
 
@@ -121,7 +121,6 @@
                     let colQ = row[idxQ] || "";
                     let colR = row[idxR] || "";
 
-                    // Rule 3: Robust Date Conversion to matching format
                     let utcTimeString = "";
                     if (colA && colB) {
                         try {
@@ -152,25 +151,22 @@
             }
 
             if (processedRows.length === 0) {
-                showStatus('No rows to export.', 'error');
+                showStatus('No unique rows found to export.', 'error');
                 button.disabled = false;
                 return;
             }
 
-            showStatus('Uploading compiled unique entries...', 'info');
+            showStatus('Uploading data segments to Google Sheets...', 'info');
 
-            // Convert to clean JSON string and post as an explicit string parameter
-            const formData = new URLSearchParams();
-            formData.append('jsonPayload', JSON.stringify(processedRows));
-
+            // Using text/plain keeps the data submission simple and evades strict cross-origin policies
             fetch(APPS_SCRIPT_URL, {
                 method: 'POST',
                 mode: 'no-cors',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: formData.toString()
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify(processedRows)
             })
             .then(() => {
-                showStatus(`Successfully dispatched ${processedRows.length} unique rows! Check your 'Orders' tab.`, 'success');
+                showStatus(`Success! Sent ${processedRows.length} unique rows. Verify your "Orders" tab.`, 'success');
                 button.disabled = false;
                 fileInput.value = '';
             })
@@ -186,4 +182,3 @@
 
 </body>
 </html>
-
