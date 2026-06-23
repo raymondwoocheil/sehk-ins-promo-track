@@ -603,7 +603,7 @@
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i];
       
-      // Skip checking drilldown containers since they are handled contextually below
+      // Skip checking drilldown containers here since they are handled contextually below
       if (r.classList.contains('drilldown-container')) {
         continue;
       }
@@ -632,12 +632,13 @@
         }
       });
 
-      // If drilldowns are checked, expand them line-by-line matching the primary row data
+      const nextRow = rows[i + 1];
+      const hasDrilldownData = nextRow && nextRow.classList.contains('drilldown-container');
+
+      // Handle child row injection matrix logic maps contextually
       if (shouldExportDrilldown) {
-        const nextRow = rows[i + 1];
-        if (nextRow && nextRow.classList.contains('drilldown-container')) {
+        if (hasDrilldownData) {
           const subRows = nextRow.querySelectorAll('.drilldown-table tbody tr');
-          
           subRows.forEach(subRow => {
             const subTds = subRow.querySelectorAll('td');
             let subRowData = [];
@@ -649,9 +650,14 @@
             let combinedRow = primaryData.concat(subRowData);
             tsv += combinedRow.join("\t") + "\n";
           });
+        } else {
+          // Pad the row structure if no drilldown child data elements exist to align columns properly
+          let emptyPadding = activeWorkspace === 'ctr' ? ["", "", "", ""] : ["", ""];
+          let combinedRow = primaryData.concat(emptyPadding);
+          tsv += combinedRow.join("\t") + "\n";
         }
       } else {
-        // Unchecked: Export exactly the primary row values without modifying layout column dimensions
+        // Regular clean flat metrics layout export line
         tsv += primaryData.join("\t") + "\n";
       }
     }
