@@ -248,57 +248,70 @@
   }
 
   async function fetchRecordsPipeline() {
-    document.getElementById('mainTableBody').innerHTML = '<tr><td colspan="6" style="text-align:center;">Synchronizing active dataset elements...</td></tr>';
-    
+    document.getElementById('mainTableBody').innerHTML = '<tr><td colspan="6" style="text-align:center;">Synchronizing active data fields...</td></tr>';
+
     try {
       const [mappingText, ordersText] = await Promise.all([
         fetch(MAPPING_CSV_URL).then(r => r.text()),
         fetch(ORDERS_CSV_URL).then(r => r.text())
       ]);
       
-      // Parse mapping structures
+      // 1. Process Mapping dataset normally (Grouping prefix strings safely)
       const mappingRows = parseCSVText(mappingText);
       voucherToTrackingMap = {};
       for (let i = 1; i < mappingRows.length; i++) {
         const r = mappingRows[i]; if (r.length < 3) continue;
-        const vCode = r[0].trim(); const trackVal = r[2].trim();
+        let vCode = r[0].trim();
+        if (vCode.includes('-')) {
+          vCode = vCode.split('-')[0].trim();
+        }
+        const trackVal = r[2].trim();
         if (!voucherToTrackingMap[vCode]) voucherToTrackingMap[vCode] = [];
         if (!voucherToTrackingMap[vCode].includes(trackVal)) voucherToTrackingMap[vCode].push(trackVal);
       }
 
-      // Parse backend transaction realizations matrix data fields
+      // 2. Clear out old cached references and populate checkout logs
+      if (currentDataSource === 'sheets') {
+        await fetchFromGoogleSheets();
+      } else {
+        await fetchFromSupabaseLive();
+      }
+
+      // 3. Process backend realized orders into structured counts (Comma-splitting + prefix logic)
       const orderRows = parseCSVText(ordersText);
       cachedOrders = [];
       const colLen = orderRows[0] ? orderRows[0].length : 0;
 
       for (let i = 1; i < orderRows.length; i++) {
-        const r = orderRows[i]; 
-        if (r.length < colLen || colLen < 2) continue;
+        const r = orderRows[i]; if (r.length < colLen || colLen < 2) continue;
         
         const rawVoucherField = r[colLen - 2].trim(); // Column H (8th column)
         const tStamp = r[colLen - 1].trim();          // Column I (9th column)
 
-        // Split on commas if a single order contains multiple stacked codes
-        if (rawVoucherField.includes(',')) {
-          const codes = rawVoucherField.split(',');
-          codes.forEach(code => {
-            const cleanCode = code.trim();
-            if (cleanCode) {
-              cachedOrders.push({ timestamp: tStamp, voucher_code: cleanCode });
-            }
-          });
-        } else if (rawVoucherField) {
-          cachedOrders.push({ timestamp: tStamp, voucher_code: rawVoucherField });
+        // Scenario A: Realized Order without Voucher (Cross-check counter vector tracking)
+        if (!rawVoucherField || rawVoucherField === "" || rawVoucherField === "-") {
+          cachedOrders.push({ timestamp: tStamp, voucher_code: "no_voucher" });
+          continue;
         }
-      }
-    } catch (e) {
-      console.error("Mapping/Orders feed missing or structure unaligned:", e);
-    }
 
-    if (currentDataSource === 'sheets') {
-      await fetchFromGoogleSheets();
-    } else {
-      await fetchFromSupabaseLive();
+        // Scenario B: Realized Order with multi-vouchers or standard codes
+        const codeGroup = rawVoucherField.includes(',') ? rawVoucherField.split(',') : [rawVoucherField];
+        codeGroup.forEach(code => {
+          let cleanCode = code.trim();
+          if (!cleanCode) return;
+
+          if (cleanCode.includes('-')) {
+            cleanCode = cleanCode.split('-')[0].trim();
+          }
+
+          cachedOrders.push({ timestamp: tStamp, voucher_code: cleanCode });
+        });
+      }
+
+      renderMetricsTable();
+    } catch (e) {
+      console.error("Pipeline mapping or backend compilation matrix unaligned:", e);
+      document.getElementById('mainTableBody').innerHTML = `<tr><td colspan="6" style="text-align:center; color:red;">Pipeline Error: ${e.message}</td></tr>`;
     }
   }
 
