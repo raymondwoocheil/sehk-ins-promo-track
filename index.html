@@ -597,7 +597,7 @@
     }
     tsv += headerRow.join("\t") + "\n";
 
-    // 2. Select only primary tracking rows (ignoring nested drilldown containers)
+    // 2. Target only primary rows explicitly
     const primaryRows = Array.from(table.querySelectorAll('tbody > tr:not(.drilldown-container)'));
     
     primaryRows.forEach(r => {
@@ -605,13 +605,23 @@
       let primaryData = [];
       
       tds.forEach(c => {
-        // Get text node content directly to prevent grabbing nested sub-table strings
-        let cellText = c.innerText.replace(/\r?\n|\r/g, " ").trim();
+        // FIX: Extract text only from direct text nodes to completely block nested sub-table leaks
+        let cellText = "";
+        c.childNodes.forEach(node => {
+          if (node.nodeType === Node.TEXT_NODE) {
+            cellText += node.nodeValue;
+          } else if (node.nodeType === Node.ELEMENT_NODE && node.tagName !== 'TABLE' && node.tagName !== 'TR' && node.tagName !== 'TD') {
+            // Keep contents of inline elements like <strong> or <span> but drop accidental table blocks
+            cellText += node.innerText;
+          }
+        });
         
-        // Strip any residual symbols or emojis from character strings
-        cellText = cellText.replace(/^[\u2600-\u27BF\uE000-\uF8FF\uD83C-\uDBFF\uDC00-\uDFFF\s]+/, '').trim();
+        cellText = cellText.replace(/\r?\n|\r/g, " ").trim();
         
-        // Split actual numeric parsing out of the combined CVR cell metric layout string
+        // Strip any lingering layout icons, warning tokens, and structural symbols
+        cellText = cellText.replace(/^[\u2600-\u27BF\uE000-\uF8FF\uD83C-\uDBFF\uDC00-\uDFFF\u2000-\u2BFF\s]+/, '').trim();
+        
+        // Separate combined conversion metric fields cleanly
         if (cellText.includes('🎯') || cellText.includes('(Imp)')) {
           const cleanMetrics = cellText.replace('🎯', '').trim();
           const parts = cleanMetrics.split('/');
@@ -623,8 +633,8 @@
         }
       });
 
+      // 3. Handle Drilldown Canvas Export paths strictly based on verification checks
       if (shouldExportDrilldown) {
-        // Locate the next sibling row to extract the corresponding drilldown canvas records
         const nextRow = r.nextElementSibling;
         if (nextRow && nextRow.classList.contains('drilldown-container')) {
           const subRows = nextRow.querySelectorAll('.drilldown-table tbody tr');
@@ -645,6 +655,7 @@
           tsv += combinedRow.join("\t") + "\n";
         }
       } else {
+        // When unchecked, output only the clean isolated summary line
         tsv += primaryData.join("\t") + "\n";
       }
     });
