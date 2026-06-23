@@ -585,11 +585,9 @@
     if (activeWorkspace === 'ctr') {
       headerRow = ["Data Tracking Value", "Impressions", "Clicks", "CTR %"];
     } else {
-      // Split combined CVR into explicit independent columns
       headerRow = ["Voucher Code Applied", "Mapped Ref Imps", "Mapped Ref Clicks", "Checking out", "Redemption", "CVR% (Impression)", "CVR% (Click)"];
     }
     
-    // If exporting drilldowns, append the specific drilldown contextual headers at the end
     if (shouldExportDrilldown) {
       if (activeWorkspace === 'ctr') {
         headerRow.push("Source Target URL", "Sub-Impressions", "Sub-Clicks", "Sub-CTR %");
@@ -605,7 +603,7 @@
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i];
       
-      // Skip checking drilldown containers here since they are handled contextually below
+      // Skip checking drilldown containers since they are handled contextually below
       if (r.classList.contains('drilldown-container')) {
         continue;
       }
@@ -634,7 +632,7 @@
         }
       });
 
-      // If drilldowns are checked, locate the adjacent sub-table row container block
+      // If drilldowns are checked, expand them line-by-line matching the primary row data
       if (shouldExportDrilldown) {
         const nextRow = rows[i + 1];
         if (nextRow && nextRow.classList.contains('drilldown-container')) {
@@ -648,13 +646,12 @@
               subRowData.push(subTd.innerText.replace(/\r?\n|\r/g, " ").trim());
             });
             
-            // Combine primary layout columns with this child URL metrics path
             let combinedRow = primaryData.concat(subRowData);
             tsv += combinedRow.join("\t") + "\n";
           });
         }
       } else {
-        // Regular single row fallback output structure 
+        // Unchecked: Export exactly the primary row values without modifying layout column dimensions
         tsv += primaryData.join("\t") + "\n";
       }
     }
