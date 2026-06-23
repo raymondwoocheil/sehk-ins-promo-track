@@ -625,10 +625,14 @@
           if (node.nodeType === Node.TEXT_NODE) {
             cellText += node.nodeValue;
           } else if (node.nodeType === Node.ELEMENT_NODE && !['TABLE', 'TR', 'TD', 'THEAD', 'TBODY'].includes(node.tagName)) {
-            if (node.innerText.includes("No client-side checkout")) return;
             cellText += node.innerText;
           }
         });
+        
+        // CRITICAL TRUNCATION FIX: Chop off the string if the leaked fallback message text is detected inside the cell buffer
+        if (cellText.includes("No client-side checkout")) {
+          cellText = cellText.split("No client-side checkout")[0];
+        }
         
         cellText = cellText.replace(/\r?\n|\r/g, " ").trim();
         
