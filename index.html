@@ -16,6 +16,7 @@
     .control-panel { background: #fafbfc; padding: 20px; border: 1px solid #e1e4e8; border-radius: 6px; margin-bottom: 20px; }
     .filter-group { display: flex; gap: 15px; margin-bottom: 15px; align-items: flex-end; flex-wrap: wrap; }
     .input-field { display: flex; flex-direction: column; gap: 5px; }
+    .input-field-end { display: flex; justify-content: flex-end; }
     .checkbox-field { display: flex; align-items: center; gap: 8px; padding-bottom: 10px; cursor: pointer; user-select: none; }
     
     .shortcuts-group { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; align-items: center; }
@@ -103,6 +104,13 @@
       <button class="shortcut-btn" onclick="applyDateShortcut('thisMonth')">This Month</button>
       <button class="btn-primary" style="margin-left: auto;" onclick="fetchRecordsPipeline()">Fetch Tracker Log</button>
       <button class="btn-primary" style="background: #0366d6; margin-left: 10px;" onclick="copyTableAsTSV()">Copy as TSV</button>
+    </div>
+
+    <div class="input-field-end">
+      <label class="checkbox-field">
+        <input type="checkbox" id="exportDrilldown">
+        Include Expanded URL Drilldowns in TSV
+      </label>
     </div>
   </div>
 
@@ -566,14 +574,98 @@
   }
 
   function copyTableAsTSV() {
-    const table = document.getElementById('analyticsTable'); if (!table) return;
-    let tsv = ""; const rows = table.querySelectorAll('tr');
-    rows.forEach(r => {
-      if (r.classList.contains('drilldown-container') || r.style.display === 'none') return;
-      const dataRow = []; r.querySelectorAll('th, td').forEach(c => dataRow.push(c.innerText.replace(/\r?\n|\r/g, " ").trim()));
-      if (dataRow.length > 0) tsv += dataRow.join("\t") + "\n";
+    const table = document.getElementById('analyticsTable'); 
+    if (!table) return;
+    
+    const shouldExportDrilldown = document.getElementById('exportDrilldown').checked;
+    let tsv = ""; 
+
+    // 1. Generate Headers
+    const ths = Array.from(table.querySelectorAll('thead th'));
+    let headerRow = [];
+    
+    ths.forEach(th => {
+      let text = th.innerText.trim();
+      // Split the combined CVR% column header into two distinct columns
+      if (text.includes('CVR%')) {
+        headerRow.push("CVR% (Impression)", "CVR% (Click)");
+      } else {
+        headerRow.push(text);
+      }
     });
-    navigator.clipboard.writeText(tsv).then(() => alert("Workspace table data copied to clipboard as TSV matrix form!")).catch(e => console.error(e));
+    
+    // If exporting drilldowns, add an extra metadata column to help distinguish drilldown rows clearly
+    if (shouldExportDrilldown) {
+      headerRow.unshift("Row Type");
+    }
+    tsv += headerRow.join("\t") + "\n";
+
+    // 2. Generate Rows
+    const rows = Array.from(table.querySelectorAll('tbody > tr'));
+    
+    rows.forEach(r => {
+      // Skip drilldown rows entirely if the checkbox is unchecked
+      if (r.classList.contains('drilldown-container')) {
+        if (!shouldExportDrilldown) return;
+        
+        // Process sub-table rows inside the expanded container
+        const subRows = r.querySelectorAll('.drilldown-table tbody tr');
+        subRows.forEach(subRow => {
+          const tds = subRow.querySelectorAll('td');
+          let subRowData = [];
+          
+          tds.forEach(td => {
+            subRowData.push(td.innerText.replace(/\r?\n|\r/g, " ").trim());
+          });
+          
+          // Pad the sub-row array so it matches the structural columns of the primary row layout
+          while (subRowData.length < (headerRow.length - 1)) {
+            subRowData.push("");
+          }
+          
+          subRowData.unshift("Sub-URL Canvas");
+          tsv += subRowData.join("\t") + "\n";
+        });
+        return;
+      }
+
+      // Process primary rows
+      const tds = r.querySelectorAll('td');
+      let dataRow = [];
+      
+      tds.forEach(c => {
+        let cellText = c.innerText.replace(/\r?\n|\r/g, " ").trim();
+        
+        // Clean up descriptive structural emojis from the primary key string fields
+        if (cellText.startsWith('📁') || cellText.startsWith('🎟️')) {
+          cellText = cellText.substring(2).trim();
+        }
+        
+        // Split actual numeric parsing out of the combined CVR cell metric layout string
+        if (cellText.includes('🎯') || cellText.includes('(Imp)')) {
+          // Formats like: "🎯 0.00% (Imp) / 0.00% (Clk)"
+          const cleanMetrics = cellText.replace('🎯', '').trim();
+          const parts = cleanMetrics.split('/');
+          const impVal = parts[0] ? parts[0].replace('(Imp)', '').trim() : "0.00%";
+          const clkVal = parts[1] ? parts[1].replace('(Clk)', '').trim() : "0.00%";
+          dataRow.push(impVal, clkVal);
+        } else {
+          dataRow.push(cellText);
+        }
+      });
+
+      if (shouldExportDrilldown) {
+        dataRow.unshift("Primary Metric");
+      }
+      
+      if (dataRow.length > 0) {
+        tsv += dataRow.join("\t") + "\n";
+      }
+    });
+
+    navigator.clipboard.writeText(tsv).then(() => {
+      alert("Workspace table metrics compiled and copied to clipboard as clean TSV!");
+    }).catch(e => console.error("Clipboard write blocked:", e));
   }
 </script>
 </body>
