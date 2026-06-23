@@ -609,7 +609,7 @@
     }
     tsv += headerRow.join("\t") + "\n";
 
-    // 2. Select only the legitimate tracking summary rows 
+    // 2. Select only primary tracking rows
     const primaryRows = Array.from(table.querySelectorAll('tbody > tr:not(.drilldown-container)'));
     
     primaryRows.forEach(r => {
@@ -619,19 +619,21 @@
       let primaryData = [];
       
       tds.forEach(c => {
-        // Isolate text exclusively belonging to this specific cell level, blocking nested child element leaks
+        // Isolate text exclusively belonging to this specific cell level, blocking nested child leaks
         let cellText = "";
         c.childNodes.forEach(node => {
           if (node.nodeType === Node.TEXT_NODE) {
             cellText += node.nodeValue;
           } else if (node.nodeType === Node.ELEMENT_NODE && !['TABLE', 'TR', 'TD', 'THEAD', 'TBODY'].includes(node.tagName)) {
+            // Skip the unlogged fallback error string node directly if it leaked into the DOM tree
+            if (node.innerText.includes("No client-side checkout")) return;
             cellText += node.innerText;
           }
         });
         
         cellText = cellText.replace(/\r?\n|\r/g, " ").trim();
         
-        // Clear out layout icons, warning tokens, and campaign decorations safely
+        // Clean out layout icons, warning tokens, and campaign decorations safely
         cellText = cellText.replace(/^[\u2600-\u27BF\uE000-\uF8FF\uD83C-\uDBFF\uDC00-\uDFFF\u2000-\u2BFF\s]+/, '').trim();
         
         // Parse conversion cells cleanly into separate metrics 
@@ -652,7 +654,8 @@
         if (nextRow && nextRow.classList.contains('drilldown-container')) {
           const subRows = nextRow.querySelectorAll('.drilldown-table tbody tr');
           
-          if (subRows.length > 0) {
+          // Ensure we check that the first cell doesn't just contain our fallback notice string
+          if (subRows.length > 0 && !subRows[0].innerText.includes("No client-side checkout")) {
             subRows.forEach(subRow => {
               const subTds = subRow.querySelectorAll('td');
               let subRowData = [];
