@@ -580,88 +580,84 @@
     const shouldExportDrilldown = document.getElementById('exportDrilldown').checked;
     let tsv = ""; 
 
-    // 1. Generate Headers
-    const ths = Array.from(table.querySelectorAll('thead th'));
+    // 1. Generate Header Row
     let headerRow = [];
+    if (activeWorkspace === 'ctr') {
+      headerRow = ["Data Tracking Value", "Impressions", "Clicks", "CTR %"];
+    } else {
+      // Split combined CVR into explicit independent columns
+      headerRow = ["Voucher Code Applied", "Mapped Ref Imps", "Mapped Ref Clicks", "Checking out", "Redemption", "CVR% (Impression)", "CVR% (Click)"];
+    }
     
-    ths.forEach(th => {
-      let text = th.innerText.trim();
-      // Split the combined CVR% column header into two distinct columns
-      if (text.includes('CVR%')) {
-        headerRow.push("CVR% (Impression)", "CVR% (Click)");
-      } else {
-        headerRow.push(text);
-      }
-    });
-    
-    // If exporting drilldowns, add an extra metadata column to help distinguish drilldown rows clearly
+    // If exporting drilldowns, append the specific drilldown contextual headers at the end
     if (shouldExportDrilldown) {
-      headerRow.unshift("Row Type");
+      if (activeWorkspace === 'ctr') {
+        headerRow.push("Source Target URL", "Sub-Impressions", "Sub-Clicks", "Sub-CTR %");
+      } else {
+        headerRow.push("Source Checkout Step Funnel Canvas", "Funnel Progression Status");
+      }
     }
     tsv += headerRow.join("\t") + "\n";
 
-    // 2. Generate Rows
+    // 2. Generate Data Rows
     const rows = Array.from(table.querySelectorAll('tbody > tr'));
     
-    rows.forEach(r => {
-      // Skip drilldown rows entirely if the checkbox is unchecked
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      
+      // Skip checking drilldown containers here since they are handled contextually below
       if (r.classList.contains('drilldown-container')) {
-        if (!shouldExportDrilldown) return;
-        
-        // Process sub-table rows inside the expanded container
-        const subRows = r.querySelectorAll('.drilldown-table tbody tr');
-        subRows.forEach(subRow => {
-          const tds = subRow.querySelectorAll('td');
-          let subRowData = [];
-          
-          tds.forEach(td => {
-            subRowData.push(td.innerText.replace(/\r?\n|\r/g, " ").trim());
-          });
-          
-          // Pad the sub-row array so it matches the structural columns of the primary row layout
-          while (subRowData.length < (headerRow.length - 1)) {
-            subRowData.push("");
-          }
-          
-          subRowData.unshift("Sub-URL Canvas");
-          tsv += subRowData.join("\t") + "\n";
-        });
-        return;
+        continue;
       }
 
-      // Process primary rows
+      // Process primary operational columns
       const tds = r.querySelectorAll('td');
-      let dataRow = [];
+      let primaryData = [];
       
       tds.forEach(c => {
         let cellText = c.innerText.replace(/\r?\n|\r/g, " ").trim();
         
-        // Clean up descriptive structural emojis from the primary key string fields
+        // Strip structural descriptive layout emojis
         if (cellText.startsWith('📁') || cellText.startsWith('🎟️')) {
           cellText = cellText.substring(2).trim();
         }
         
-        // Split actual numeric parsing out of the combined CVR cell metric layout string
+        // Parse numeric cells cleanly away from string layouts
         if (cellText.includes('🎯') || cellText.includes('(Imp)')) {
-          // Formats like: "🎯 0.00% (Imp) / 0.00% (Clk)"
           const cleanMetrics = cellText.replace('🎯', '').trim();
           const parts = cleanMetrics.split('/');
           const impVal = parts[0] ? parts[0].replace('(Imp)', '').trim() : "0.00%";
           const clkVal = parts[1] ? parts[1].replace('(Clk)', '').trim() : "0.00%";
-          dataRow.push(impVal, clkVal);
+          primaryData.push(impVal, clkVal);
         } else {
-          dataRow.push(cellText);
+          primaryData.push(cellText);
         }
       });
 
+      // If drilldowns are checked, locate the adjacent sub-table row container block
       if (shouldExportDrilldown) {
-        dataRow.unshift("Primary Metric");
+        const nextRow = rows[i + 1];
+        if (nextRow && nextRow.classList.contains('drilldown-container')) {
+          const subRows = nextRow.querySelectorAll('.drilldown-table tbody tr');
+          
+          subRows.forEach(subRow => {
+            const subTds = subRow.querySelectorAll('td');
+            let subRowData = [];
+            
+            subTds.forEach(subTd => {
+              subRowData.push(subTd.innerText.replace(/\r?\n|\r/g, " ").trim());
+            });
+            
+            // Combine primary layout columns with this child URL metrics path
+            let combinedRow = primaryData.concat(subRowData);
+            tsv += combinedRow.join("\t") + "\n";
+          });
+        }
+      } else {
+        // Regular single row fallback output structure 
+        tsv += primaryData.join("\t") + "\n";
       }
-      
-      if (dataRow.length > 0) {
-        tsv += dataRow.join("\t") + "\n";
-      }
-    });
+    }
 
     navigator.clipboard.writeText(tsv).then(() => {
       alert("Workspace table metrics compiled and copied to clipboard as clean TSV!");
