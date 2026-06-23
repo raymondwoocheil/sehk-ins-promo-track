@@ -580,7 +580,7 @@
     const shouldExportDrilldown = document.getElementById('exportDrilldown').checked;
     let tsv = ""; 
 
-    // 1. Generate Header Row
+    // 1. Generate Clean Header Row
     let headerRow = [];
     if (activeWorkspace === 'ctr') {
       headerRow = ["Data Tracking Value", "Impressions", "Clicks", "CTR %"];
@@ -597,30 +597,21 @@
     }
     tsv += headerRow.join("\t") + "\n";
 
-    // 2. Generate Data Rows
-    const rows = Array.from(table.querySelectorAll('tbody > tr'));
+    // 2. Select only primary tracking rows (ignoring nested drilldown containers)
+    const primaryRows = Array.from(table.querySelectorAll('tbody > tr:not(.drilldown-container)'));
     
-    for (let i = 0; i < rows.length; i++) {
-      const r = rows[i];
-      
-      // Skip checking drilldown containers here since they are handled contextually below
-      if (r.classList.contains('drilldown-container')) {
-        continue;
-      }
-
-      // Process primary operational columns
+    primaryRows.forEach(r => {
       const tds = r.querySelectorAll('td');
       let primaryData = [];
       
       tds.forEach(c => {
+        // Get text node content directly to prevent grabbing nested sub-table strings
         let cellText = c.innerText.replace(/\r?\n|\r/g, " ").trim();
         
-        // Strip structural descriptive layout emojis
-        if (cellText.startsWith('📁') || cellText.startsWith('🎟️')) {
-          cellText = cellText.substring(2).trim();
-        }
+        // Strip any residual symbols or emojis from character strings
+        cellText = cellText.replace(/^[\u2600-\u27BF\uE000-\uF8FF\uD83C-\uDBFF\uDC00-\uDFFF\s]+/, '').trim();
         
-        // Parse numeric cells cleanly away from string layouts
+        // Split actual numeric parsing out of the combined CVR cell metric layout string
         if (cellText.includes('🎯') || cellText.includes('(Imp)')) {
           const cleanMetrics = cellText.replace('🎯', '').trim();
           const parts = cleanMetrics.split('/');
@@ -632,12 +623,10 @@
         }
       });
 
-      const nextRow = rows[i + 1];
-      const hasDrilldownData = nextRow && nextRow.classList.contains('drilldown-container');
-
-      // Handle child row injection matrix logic maps contextually
       if (shouldExportDrilldown) {
-        if (hasDrilldownData) {
+        // Locate the next sibling row to extract the corresponding drilldown canvas records
+        const nextRow = r.nextElementSibling;
+        if (nextRow && nextRow.classList.contains('drilldown-container')) {
           const subRows = nextRow.querySelectorAll('.drilldown-table tbody tr');
           subRows.forEach(subRow => {
             const subTds = subRow.querySelectorAll('td');
@@ -651,16 +640,14 @@
             tsv += combinedRow.join("\t") + "\n";
           });
         } else {
-          // Pad the row structure if no drilldown child data elements exist to align columns properly
           let emptyPadding = activeWorkspace === 'ctr' ? ["", "", "", ""] : ["", ""];
           let combinedRow = primaryData.concat(emptyPadding);
           tsv += combinedRow.join("\t") + "\n";
         }
       } else {
-        // Regular clean flat metrics layout export line
         tsv += primaryData.join("\t") + "\n";
       }
-    }
+    });
 
     navigator.clipboard.writeText(tsv).then(() => {
       alert("Workspace table metrics compiled and copied to clipboard as clean TSV!");
