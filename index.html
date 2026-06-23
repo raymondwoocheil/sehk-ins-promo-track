@@ -475,15 +475,19 @@
       cachedClicks.forEach(r => countDenominators(r, trackingValueClicks, currentDataSource === 'sheets'));
       cachedImpressions.forEach(r => countDenominators(r, trackingValueImps, currentDataSource === 'sheets'));
 
-      // Aggregate checkout session funnels 
       const aggregation = {};
       let totalCheckoutsSum = 0;
 
+      // 1. Process client checkout data from Vouchers tab
       cachedVouchers.forEach(row => {
         if (currentDataSource === 'sheets') {
           const d = new Date(row.timestamp); if (d < startBounds || d > endBounds) return;
         }
-        const vCode = row.voucher_code || '';
+        let vCode = row.voucher_code || '';
+        if (vCode.includes('-')) {
+          vCode = vCode.split('-')[0].trim();
+        }
+
         if (filterMain && !vCode.toLowerCase().includes(filterMain)) return;
         if (filterUrl && !(row.url_clean || '').toLowerCase().includes(filterUrl)) return;
         if (filterCid && !(row.cid || '').toLowerCase().includes(filterCid)) return;
@@ -500,21 +504,26 @@
         totalCheckoutsSum++;
       });
 
-      // Aggregate backend actual realized orders volumes
+      // Ensure baseline structural container entry for "no_voucher" is instantiated immediately
+      if (!aggregation["no_voucher"]) {
+        aggregation["no_voucher"] = { checkouts: 0, orders: 0, urls: {} };
+      }
+
+      // 2. Process realized backend conversion data from Orders dataset (handling unlisted or missing codes)
       let totalRealizedOrdersSum = 0;
       cachedOrders.forEach(row => {
         const d = new Date(row.timestamp); 
-        if (d < startBounds || d > endBounds) return; // Universal HKT validation windows
+        if (d < startBounds || d > endBounds) return; 
         
         const vCode = row.voucher_code || '';
         if (filterMain && !vCode.toLowerCase().includes(filterMain)) return;
         
-        // Realized orders do not contain client client-side attributes. 
-        // We accumulate matching codes into the workspace tracking matrix structure
-        if (aggregation[vCode]) {
-          aggregation[vCode].orders++;
-          totalRealizedOrdersSum++;
+        if (!aggregation[vCode]) {
+          aggregation[vCode] = { checkouts: 0, orders: 0, urls: {} };
         }
+        
+        aggregation[vCode].orders++;
+        totalRealizedOrdersSum++;
       });
 
       document.getElementById('checkoutVolumeHeader').innerText = `Checking out (Sum: ${totalCheckoutsSum})`;
@@ -530,7 +539,6 @@
           totalRefImps += (trackingValueImps[tVal] || 0);
         });
 
-        // CVR calculations are modified to use backend realized order values as the conversion factor
         const cvrClicks = totalRefClicks > 0 ? ((meta.orders / totalRefClicks) * 100).toFixed(2) : '0.00';
         const cvrImps = totalRefImps > 0 ? ((meta.orders / totalRefImps) * 100).toFixed(2) : '0.00';
 
@@ -559,9 +567,13 @@
         `;
 
         let subRowsHtml = '';
-        urlEntries.forEach(([url, uMeta]) => {
-          subRowsHtml += `<tr><td><a href="${url}" target="_blank" style="color: #0366d6; word-break: break-all;">${url}</a></td><td colspan="5">${uMeta.checkouts} checkouts initialized</td></tr>`;
-        });
+        if (urlEntries.length > 0) {
+          urlEntries.forEach(([url, uMeta]) => {
+            subRowsHtml += `<tr><td><a href="${url}" target="_blank" style="color: #0366d6; word-break: break-all;">${url}</a></td><td colspan="5">${uMeta.checkouts} checkouts initialized</td></tr>`;
+          });
+        } else {
+          subRowsHtml += `<tr><td colspan="6" style="color: #8c959f; font-style: italic; text-align: center;">No client-side checkout funnel records logged for this voucher code target</td></tr>`;
+        }
 
         tbody.innerHTML += mainRow + `<tr id="drilldown-${index}" class="drilldown-container"><td colspan="6"><table class="drilldown-table"><thead><tr><th>Source Checkout Step Funnel Canvas</th><th colspan="5">Funnel Progression Volume Metrics</th></tr></thead><tbody>${subRowsHtml}</tbody></table></td></tr>`;
       });
