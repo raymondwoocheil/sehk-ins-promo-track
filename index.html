@@ -264,7 +264,6 @@
         fetch(ORDERS_CSV_URL).then(r => r.text())
       ]);
       
-      // 1. Process Mapping dataset normally (Grouping prefix strings safely)
       const mappingRows = parseCSVText(mappingText);
       voucherToTrackingMap = {};
       for (let i = 1; i < mappingRows.length; i++) {
@@ -278,31 +277,31 @@
         if (!voucherToTrackingMap[vCode].includes(trackVal)) voucherToTrackingMap[vCode].push(trackVal);
       }
 
-      // 2. Clear out old cached references and populate checkout logs
       if (currentDataSource === 'sheets') {
         await fetchFromGoogleSheets();
       } else {
         await fetchFromSupabaseLive();
       }
 
-      // 3. Process backend realized orders into structured counts (Comma-splitting + prefix logic)
       const orderRows = parseCSVText(ordersText);
       cachedOrders = [];
+      window.cachedOrdersRawLines = []; // Global variable container matching unique tracking keys
       const colLen = orderRows[0] ? orderRows[0].length : 0;
 
       for (let i = 1; i < orderRows.length; i++) {
-        const r = orderRows[i]; if (r.length < colLen || colLen < 2) continue;
+        const r = orderRows[i]; if (r.length < colLen || colLen < 3) continue;
         
-        const rawVoucherField = r[colLen - 2].trim(); // Column H (8th column)
-        const tStamp = r[colLen - 1].trim();          // Column I (9th column)
+        const orderId = r[0].trim();                  // Column A
+        const rawVoucherField = r[colLen - 2].trim(); // Column H
+        const tStamp = r[colLen - 1].trim();          // Column I
 
-        // Scenario A: Realized Order without Voucher (Cross-check counter vector tracking)
+        window.cachedOrdersRawLines.push({ timestamp: tStamp, order_code: orderId });
+
         if (!rawVoucherField || rawVoucherField === "" || rawVoucherField === "-") {
           cachedOrders.push({ timestamp: tStamp, voucher_code: "no_voucher" });
           continue;
         }
 
-        // Scenario B: Realized Order with multi-vouchers or standard codes
         const codeGroup = rawVoucherField.includes(',') ? rawVoucherField.split(',') : [rawVoucherField];
         codeGroup.forEach(code => {
           let cleanCode = code.trim();
@@ -318,7 +317,7 @@
 
       renderMetricsTable();
     } catch (e) {
-      console.error("Pipeline mapping or backend compilation matrix unaligned:", e);
+      console.error("Pipeline compiling matrix unaligned:", e);
       document.getElementById('mainTableBody').innerHTML = `<tr><td colspan="6" style="text-align:center; color:red;">Pipeline Error: ${e.message}</td></tr>`;
     }
   }
@@ -462,7 +461,22 @@
 
     } else {
       // --- VOUCHER MATRIX WORKSPACE PANEL VIEW ---
-      thead.innerHTML = `<tr><th>Voucher Code Applied</th><th>Cart Imps</th><th>Cart Clicks</th><th id="checkoutVolumeHeader">Checkout</th><th id="orderVolumeHeader">Redemption</th><th>Realized CVR% (Imp / Click)</th></tr>`;
+      
+      // 1. Calculate unique order codes within filtered period before processing mapping criteria
+      let uniqueOrderCodes = new Set();
+      
+      if (window.cachedOrdersRawLines && window.cachedOrdersRawLines.length > 0) {
+        window.cachedOrdersRawLines.forEach(row => {
+          const d = new Date(row.timestamp);
+          if (d >= startBounds && d <= endBounds) {
+            if (row.order_code) {
+              uniqueOrderCodes.add(row.order_code);
+            }
+          }
+        });
+      }
+
+      thead.innerHTML = `<tr><th>Voucher Code Applied <span style="font-size:12px; font-weight:normal; color:#586069; margin-left:10px;">(Unique Orders: ${uniqueOrderCodes.size})</span></th><th>Cart Imps</th><th>Cart Clicks</th><th id="checkoutVolumeHeader">Checkout</th><th id="orderVolumeHeader">Redemption</th><th>Realized CVR% (Imp / Click)</th></tr>`;
       
       const trackingValueClicks = {};
       const trackingValueImps = {};
@@ -478,7 +492,6 @@
       const aggregation = {};
       let totalCheckoutsSum = 0;
 
-      // 1. Process client checkout data from Vouchers tab
       cachedVouchers.forEach(row => {
         if (currentDataSource === 'sheets') {
           const d = new Date(row.timestamp); if (d < startBounds || d > endBounds) return;
@@ -504,12 +517,10 @@
         totalCheckoutsSum++;
       });
 
-      // Ensure baseline structural container entry for "no_voucher" is instantiated immediately
       if (!aggregation["no_voucher"]) {
         aggregation["no_voucher"] = { checkouts: 0, orders: 0, urls: {} };
       }
 
-      // 2. Process realized backend conversion data from Orders dataset (handling unlisted or missing codes)
       let totalRealizedOrdersSum = 0;
       cachedOrders.forEach(row => {
         const d = new Date(row.timestamp); 
